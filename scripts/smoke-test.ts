@@ -76,6 +76,23 @@ if (process.argv.includes('--order')) {
     `Estoque Vanille reservado: ${before.data?.quantity} → ${after.data?.quantity}`,
   );
 
+  check(/^MM-[A-HJ-NP-Z2-9]{6}$/.test(res.data?.orderCode ?? ''), `Código curto do pedido: ${res.data?.orderCode}`);
+
+  // 4b. Caixinha "Pfand-Box zurückgebracht" → sem Pfand
+  const swap = await client.mutations.placeOrder({
+    customerName: 'Test Kunde',
+    customerEmail: 'test@example.com',
+    customerPhone: '+49 151 0000000',
+    pickupPointCode: 'racchetta',
+    boxSize: 6,
+    items: [{ flavorId: 'zitrone', quantity: 6 }],
+    pfandBoxReturned: true,
+  });
+  check(
+    !swap.errors && swap.data?.pfandCharged === false && swap.data?.totalCents === 1700,
+    `Pfand-Rückgabe: kein Pfand (${swap.data ? swap.data.totalCents + ' ct' : JSON.stringify(swap.errors)})`,
+  );
+
   // 5. Validação: 3 potes numa caixa de 4
   const bad = await client.mutations.placeOrder({
     customerName: 'Test Kunde',
