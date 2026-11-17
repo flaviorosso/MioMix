@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { DynamoDBClient, TransactionCanceledException } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
@@ -7,17 +7,13 @@ import {
   type TransactWriteCommandInput,
 } from '@aws-sdk/lib-dynamodb';
 import type { Schema } from '../../data/resource';
+// Preços e regras: fonte única compartilhada com a página (o servidor recalcula sempre).
+import { PFAND_CENTS, PICKUP_WINDOW_HOURS, PRICES_CENTS, isBoxSize } from '../../../shared/pricing';
 
-// ---------------------------------------------------------------------------
-// Preços (PROVISÓRIOS) — ficam só no servidor. Valores em centavos de euro.
-// ---------------------------------------------------------------------------
-const PRICES_CENTS: Record<number, number> = {
-  4: 1200,
-  6: 1700,
-  8: 2200,
-};
-const PFAND_CENTS = 300;
-const PICKUP_WINDOW_HOURS = 24;
+/** Código curto para o balcão, sem caracteres ambíguos (0/O, 1/I/L). Ex.: MM-7K4Q2X */
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const makeOrderCode = () =>
+  'MM-' + Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 
 const env = {
   flavorTable: process.env.FLAVOR_TABLE!,
@@ -59,10 +55,10 @@ export const handler: Handler = async (event) => {
     throw new OrderError('Bitte gib eine gültige Telefonnummer an.');
   }
 
-  const priceCents = PRICES_CENTS[boxSize];
-  if (priceCents === undefined) {
+  if (!isBoxSize(boxSize)) {
     throw new OrderError('Ungültige Boxgröße. Erlaubt sind 4, 6 oder 8 Becher.');
   }
+  const priceCents = PRICES_CENTS[boxSize];
 
   // Junta sabores repetidos e confere as quantidades.
   const quantities = new Map<string, number>();
@@ -97,13 +93,20 @@ export const handler: Handler = async (event) => {
     return { flavorId, flavorName: flavor.name as string, quantity: quantities.get(flavorId)! };
   });
 
-  // --- 3. Pfand: usa o crédito do cliente, se houver ------------------------
-  const pfandBox = await ddb.send(
-    new GetCommand({ TableName: env.pfandBoxTable, Key: { customerEmail } }),
-  );
-  const creditCents = (pfandBox.Item?.creditCents as number | undefined) ?? 0;
-  const useCredit = creditCents >= PFAND_CENTS;
-  const pfandCharged = !useCredit;
+  // --- 3. Pfand -------------------------------------------------------------
+  // a) Cliente declarou que devolveu uma caixa → sem Pfand; staff confere na retirada
+  //    (troca: caixas em uso não aumentam).
+  // b) Senão, usa o crédito do cliente, se houver; senão cobra o Pfand.
+  const pfandReturnDeclared = args.pfandBoxReturned === true;
+  let useCredit = false;
+  if (!pfandReturnDeclared) {
+    const pfandBox = await ddb.send(
+      new GetCommand({ TableName: env.pfandBoxTable, Key: { customerEmail } }),
+    );
+    const creditCents = (pfandBox.Item?.creditCents as number | undefined) ?? 0;
+    useCredit = creditCents >= PFAND_CENTS;
+  }
+  const pfandCharged = !pfandReturnDeclared && !useCredit;
   const pfandCents = pfandCharged ? PFAND_CENTS : 0;
   const totalCents = priceCents + pfandCents;
 
@@ -112,6 +115,7 @@ export const handler: Handler = async (event) => {
   const nowIso = now.toISOString();
   const pickupDeadline = new Date(now.getTime() + PICKUP_WINDOW_HOURS * 3600_000).toISOString();
   const orderId = randomUUID();
+  const orderCode = makeOrderCode();
   const status = 'aguardando_pagamento' as const;
 
   const transactItems: NonNullable<TransactWriteCommandInput['TransactItems']> = [
@@ -130,6 +134,7 @@ export const handler: Handler = async (event) => {
         TableName: env.orderTable,
         Item: {
           id: orderId,
+          orderCode,
           __typename: 'Order',
           customerName,
           customerEmail,
@@ -141,6 +146,7 @@ export const handler: Handler = async (event) => {
           pfandCents,
           totalCents,
           pfandCharged,
+          pfandReturnDeclared,
           status,
           pickupDeadline,
           createdAt: nowIso,
@@ -154,7 +160,7 @@ export const handler: Handler = async (event) => {
         TableName: env.pfandBoxTable,
         Key: { customerEmail },
         UpdateExpression:
-          'SET boxesInUse = if_not_exists(boxesInUse, :zero) + :one, ' +
+          'SET boxesInUse = if_not_exists(boxesInUse, :zero) + :newBoxes, ' +
           'boxesReturned = if_not_exists(boxesReturned, :zero), ' +
           'creditCents = if_not_exists(creditCents, :zero) - :creditUsed, ' +
           '#tn = :tn, createdAt = if_not_exists(createdAt, :now), updatedAt = :now',
@@ -163,7 +169,7 @@ export const handler: Handler = async (event) => {
         ExpressionAttributeNames: { '#tn': '__typename' },
         ExpressionAttributeValues: {
           ':zero': 0,
-          ':one': 1,
+          ':newBoxes': pfandReturnDeclared ? 0 : 1,
           ':creditUsed': useCredit ? PFAND_CENTS : 0,
           ':tn': 'PfandBox',
           ':now': nowIso,
@@ -191,6 +197,7 @@ export const handler: Handler = async (event) => {
 
   return {
     orderId,
+    orderCode,
     status,
     boxSize,
     priceCents,

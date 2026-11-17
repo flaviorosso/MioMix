@@ -49,6 +49,7 @@ const schema = a.schema({
   /** Pedido. Criado só pela função placeOrder; staff lê e muda o status. */
   Order: a
     .model({
+      orderCode: a.string(), // código curto para o balcão, ex.: MM-7K4Q2X
       customerName: a.string().required(),
       customerEmail: a.email().required(),
       customerPhone: a.string().required(),
@@ -59,6 +60,8 @@ const schema = a.schema({
       pfandCents: a.integer().required(),
       totalCents: a.integer().required(),
       pfandCharged: a.boolean().required(),
+      // Cliente declarou que devolveu uma caixa: staff confere na retirada.
+      pfandReturnDeclared: a.boolean(),
       status: a.ref('OrderStatus').required(),
       pickupDeadline: a.datetime().required(),
     })
@@ -82,6 +85,7 @@ const schema = a.schema({
 
   PlaceOrderResult: a.customType({
     orderId: a.id().required(),
+    orderCode: a.string().required(),
     status: a.ref('OrderStatus').required(),
     boxSize: a.integer().required(),
     priceCents: a.integer().required(),
@@ -101,6 +105,7 @@ const schema = a.schema({
       pickupPointCode: a.string().required(),
       boxSize: a.integer().required(),
       items: a.ref('PlaceOrderItemInput').required().array().required(),
+      pfandBoxReturned: a.boolean(),
     })
     .returns(a.ref('PlaceOrderResult'))
     .authorization((allow) => [allow.guest(), allow.group('staff')])
