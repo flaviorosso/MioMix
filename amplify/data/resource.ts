@@ -1,5 +1,5 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
-import { createOrder } from '../functions/create-order/resource';
+import { placeOrder } from '../functions/place-order/resource';
 
 const schema = a.schema({
   OrderStatus: a.enum(['aguardando_pagamento', 'pago', 'pronto', 'retirado', 'cancelado']),
@@ -46,7 +46,7 @@ const schema = a.schema({
     .identifier(['code'])
     .authorization((allow) => [allow.guest().to(['read']), allow.group('staff')]),
 
-  /** Pedido. Criado só pela função createOrder; staff lê e muda o status. */
+  /** Pedido. Criado só pela função placeOrder; staff lê e muda o status. */
   Order: a
     .model({
       customerName: a.string().required(),
@@ -75,12 +75,12 @@ const schema = a.schema({
     .identifier(['customerEmail'])
     .authorization((allow) => [allow.group('staff')]),
 
-  CreateOrderItemInput: a.customType({
+  PlaceOrderItemInput: a.customType({
     flavorId: a.id().required(),
     quantity: a.integer().required(),
   }),
 
-  CreateOrderResult: a.customType({
+  PlaceOrderResult: a.customType({
     orderId: a.id().required(),
     status: a.ref('OrderStatus').required(),
     boxSize: a.integer().required(),
@@ -92,7 +92,7 @@ const schema = a.schema({
   }),
 
   /** Criação de pedido no servidor: confere estoque e preço e reserva os potes. */
-  createOrder: a
+  placeOrder: a
     .mutation()
     .arguments({
       customerName: a.string().required(),
@@ -100,11 +100,11 @@ const schema = a.schema({
       customerPhone: a.string().required(),
       pickupPointCode: a.string().required(),
       boxSize: a.integer().required(),
-      items: a.ref('CreateOrderItemInput').required().array().required(),
+      items: a.ref('PlaceOrderItemInput').required().array().required(),
     })
-    .returns(a.ref('CreateOrderResult'))
+    .returns(a.ref('PlaceOrderResult'))
     .authorization((allow) => [allow.guest(), allow.group('staff')])
-    .handler(a.handler.function(createOrder)),
+    .handler(a.handler.function(placeOrder)),
 });
 
 export type Schema = ClientSchema<typeof schema>;

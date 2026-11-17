@@ -1,7 +1,7 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
-import { createOrder } from './functions/create-order/resource';
+import { placeOrder } from './functions/place-order/resource';
 
 /**
  * Backend do Mio Mix (Amplify Gen 2).
@@ -10,7 +10,7 @@ import { createOrder } from './functions/create-order/resource';
 const backend = defineBackend({
   auth,
   data,
-  createOrder,
+  placeOrder,
 });
 
 // Sem cadastro público: contas staff são criadas só pelo administrador.
@@ -18,9 +18,9 @@ backend.auth.resources.cfnResources.cfnUserPool.adminCreateUserConfig = {
   allowAdminCreateUserOnly: true,
 };
 
-// A função createOrder acessa só as tabelas de que precisa.
+// A função placeOrder acessa só as tabelas de que precisa.
 const tables = backend.data.resources.tables;
-const orderFn = backend.createOrder.resources.lambda;
+const orderFn = backend.placeOrder.resources.lambda;
 
 tables['Flavor'].grantReadData(orderFn);
 tables['PickupPoint'].grantReadData(orderFn);
@@ -28,8 +28,8 @@ tables['Stock'].grantReadWriteData(orderFn);
 tables['Order'].grantWriteData(orderFn);
 tables['PfandBox'].grantReadWriteData(orderFn);
 
-backend.createOrder.addEnvironment('FLAVOR_TABLE', tables['Flavor'].tableName);
-backend.createOrder.addEnvironment('PICKUP_POINT_TABLE', tables['PickupPoint'].tableName);
-backend.createOrder.addEnvironment('STOCK_TABLE', tables['Stock'].tableName);
-backend.createOrder.addEnvironment('ORDER_TABLE', tables['Order'].tableName);
-backend.createOrder.addEnvironment('PFAND_BOX_TABLE', tables['PfandBox'].tableName);
+backend.placeOrder.addEnvironment('FLAVOR_TABLE', tables['Flavor'].tableName);
+backend.placeOrder.addEnvironment('PICKUP_POINT_TABLE', tables['PickupPoint'].tableName);
+backend.placeOrder.addEnvironment('STOCK_TABLE', tables['Stock'].tableName);
+backend.placeOrder.addEnvironment('ORDER_TABLE', tables['Order'].tableName);
+backend.placeOrder.addEnvironment('PFAND_BOX_TABLE', tables['PfandBox'].tableName);

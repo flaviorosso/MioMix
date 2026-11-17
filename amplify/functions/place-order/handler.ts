@@ -37,7 +37,7 @@ class OrderError extends Error {}
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_RE = /^\+?[0-9 ()/-]{6,25}$/;
 
-type Handler = Schema['createOrder']['functionHandler'];
+type Handler = Schema['placeOrder']['functionHandler'];
 
 export const handler: Handler = async (event) => {
   const args = event.arguments;
@@ -185,7 +185,7 @@ export const handler: Handler = async (event) => {
       }
       throw new OrderError('Deine Bestellung konnte nicht gespeichert werden. Bitte versuche es erneut.');
     }
-    console.error('createOrder failed', err);
+    console.error('placeOrder failed', err);
     throw new Error('Interner Fehler. Bitte versuche es später erneut.');
   }
 
