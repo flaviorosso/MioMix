@@ -1,5 +1,6 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { FunctionUrlAuthType } from 'aws-cdk-lib/aws-lambda';
+import { Policy, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
 import { expireOrders } from './functions/expire-orders/resource';
@@ -81,3 +82,31 @@ backend.addOutput({
     stripeWebhookUrl: webhookUrl.url,
   },
 });
+
+// Usuários do grupo staff recebem o papel IAM do grupo (não o papel "authenticated"),
+// e esse papel não tem permissões. Sem isto, a página do cliente dá 401 num navegador
+// com login de staff. Liberamos só o que um visitante também pode fazer.
+const api = backend.data.resources.graphqlApi.arn;
+const publicFields = [
+  'types/Flavor/*',
+  'types/Stock/*',
+  'types/PickupPoint/*',
+  'types/OrderItem/*',
+  'types/Query/fields/getFlavor',
+  'types/Query/fields/listFlavors',
+  'types/Query/fields/getStock',
+  'types/Query/fields/listStocks',
+  'types/Query/fields/getPickupPoint',
+  'types/Query/fields/listPickupPoints',
+  'types/Query/fields/getOrderStatus',
+  'types/Mutation/fields/placeOrder',
+];
+const staffGroupRole = backend.auth.resources.groups['staff'].role;
+new Policy(backend.auth.stack, 'StaffGroupPublicApiAccess', {
+  statements: [
+    new PolicyStatement({
+      actions: ['appsync:GraphQL'],
+      resources: publicFields.map((f) => `${api}/${f}`),
+    }),
+  ],
+}).attachToRole(staffGroupRole);
