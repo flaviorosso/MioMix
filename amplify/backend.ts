@@ -102,7 +102,7 @@ const publicFields = [
   'types/Mutation/fields/placeOrder',
 ];
 const staffGroupRole = backend.auth.resources.groups['staff'].role;
-new Policy(backend.auth.stack, 'StaffGroupPublicApiAccess', {
+new Policy(backend.data.stack, 'StaffGroupPublicApiAccess', {
   statements: [
     new PolicyStatement({
       actions: ['appsync:GraphQL'],
