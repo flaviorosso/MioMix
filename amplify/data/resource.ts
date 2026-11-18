@@ -23,7 +23,7 @@ const schema = a.schema({
       sortOrder: a.integer(),
       stock: a.hasOne('Stock', 'flavorId'),
     })
-    .authorization((allow) => [allow.guest().to(['read']), allow.group('staff')]),
+    .authorization((allow) => [allow.guest().to(['read']), allow.authenticated('identityPool').to(['read']), allow.group('staff')]),
 
   /** Estoque do dia: um registro por sabor, atualizado toda manhã pela gelateria. */
   Stock: a
@@ -34,7 +34,7 @@ const schema = a.schema({
       stockDate: a.date().required(), // dia a que a quantidade se refere
     })
     .identifier(['flavorId'])
-    .authorization((allow) => [allow.guest().to(['read']), allow.group('staff')]),
+    .authorization((allow) => [allow.guest().to(['read']), allow.authenticated('identityPool').to(['read']), allow.group('staff')]),
 
   /** Ponto de retirada. "code" é usado no QR code (ex.: ciaociao, racchetta). */
   PickupPoint: a
@@ -46,7 +46,7 @@ const schema = a.schema({
       active: a.boolean(),
     })
     .identifier(['code'])
-    .authorization((allow) => [allow.guest().to(['read']), allow.group('staff')]),
+    .authorization((allow) => [allow.guest().to(['read']), allow.authenticated('identityPool').to(['read']), allow.group('staff')]),
 
   /** Pedido. Criado só pela função placeOrder; staff lê e muda o status. */
   Order: a
@@ -172,7 +172,7 @@ const schema = a.schema({
     .query()
     .arguments({ orderId: a.id().required() })
     .returns(a.ref('PublicOrderStatus'))
-    .authorization((allow) => [allow.guest(), allow.group('staff')])
+    .authorization((allow) => [allow.guest(), allow.authenticated('identityPool'), allow.group('staff')])
     .handler(a.handler.function(orderStatus)),
 
   /** Criação de pedido no servidor: confere estoque e preço e reserva os potes. */
@@ -189,7 +189,7 @@ const schema = a.schema({
       returnOrigin: a.string(), // origem do site (validada no servidor) para voltar do Stripe
     })
     .returns(a.ref('PlaceOrderResult'))
-    .authorization((allow) => [allow.guest(), allow.group('staff')])
+    .authorization((allow) => [allow.guest(), allow.authenticated('identityPool'), allow.group('staff')])
     .handler(a.handler.function(placeOrder)),
 });
 
