@@ -4,11 +4,18 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   TransactWriteCommand,
+  UpdateCommand,
   type TransactWriteCommandInput,
 } from '@aws-sdk/lib-dynamodb';
+import Stripe from 'stripe';
 import type { Schema } from '../../data/resource';
 // Preços e regras: fonte única compartilhada com a página (o servidor recalcula sempre).
 import { PFAND_CENTS, PICKUP_WINDOW_HOURS, PRICES_CENTS, isBoxSize } from '../../../shared/pricing';
+import { ALLOWED_ORIGINS, DEFAULT_ORIGIN, PAYMENT_WINDOW_MINUTES } from '../../../shared/payment';
+import { cancelOrder } from '../_shared/orders';
+
+let stripeClient: Stripe | undefined;
+const stripe = () => (stripeClient ??= new Stripe(process.env.STRIPE_SECRET_KEY!));
 
 /** Código curto para o balcão, sem caracteres ambíguos (0/O, 1/I/L). Ex.: MM-7K4Q2X */
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -196,9 +203,80 @@ export const handler: Handler = async (event) => {
     throw new Error('Interner Fehler. Bitte versuche es später erneut.');
   }
 
+  // --- 5. Sessão de pagamento no Stripe Checkout ----------------------------
+  const origin = args.returnOrigin && ALLOWED_ORIGINS.includes(args.returnOrigin) ? args.returnOrigin : DEFAULT_ORIGIN;
+  const expiresAt = Math.floor(now.getTime() / 1000) + PAYMENT_WINDOW_MINUTES * 60;
+  let checkoutUrl: string;
+  try {
+    const session = await stripe().checkout.sessions.create({
+      mode: 'payment',
+      locale: 'de',
+      customer_email: customerEmail,
+      client_reference_id: orderId,
+      metadata: { orderId, orderCode },
+      payment_intent_data: {
+        metadata: { orderId, orderCode },
+        description: `Mio Mix ${orderCode}`,
+      },
+      expires_at: expiresAt,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'eur',
+            unit_amount: priceCents,
+            product_data: {
+              name: `Gelato-Box mit ${boxSize} Bechern`,
+              description: items.map((i) => `${i.quantity}× ${i.flavorName}`).join(', '),
+            },
+          },
+        },
+        ...(pfandCents > 0
+          ? [
+              {
+                quantity: 1,
+                price_data: {
+                  currency: 'eur',
+                  unit_amount: pfandCents,
+                  product_data: { name: 'Pfand für Mehrweg-Box' },
+                },
+              },
+            ]
+          : []),
+      ],
+      success_url: `${origin}/bestellung?id=${orderId}`,
+      cancel_url: `${origin}/bestellung?id=${orderId}&abgebrochen=1`,
+    });
+    if (!session.url) throw new Error('Stripe session without url');
+    checkoutUrl = session.url;
+
+    await ddb.send(
+      new UpdateCommand({
+        TableName: env.orderTable,
+        Key: { id: orderId },
+        UpdateExpression: 'SET stripeSessionId = :sid, checkoutUrl = :url, checkoutExpiresAt = :exp',
+        ExpressionAttributeValues: {
+          ':sid': session.id,
+          ':url': checkoutUrl,
+          ':exp': new Date(expiresAt * 1000).toISOString(),
+        },
+      }),
+    );
+  } catch (err) {
+    // Sem pagamento possível: libera os potes na hora.
+    console.error('Stripe checkout failed', err);
+    await cancelOrder(ddb, env, orderId, {
+      allowedFrom: ['aguardando_pagamento'],
+      by: 'system',
+      reason: 'Zahlung konnte nicht gestartet werden',
+    }).catch((e) => console.error('rollback failed', e));
+    throw new OrderError('Die Zahlung konnte gerade nicht gestartet werden. Bitte versuche es erneut.');
+  }
+
   return {
     orderId,
     orderCode,
+    checkoutUrl,
     status,
     boxSize,
     priceCents,

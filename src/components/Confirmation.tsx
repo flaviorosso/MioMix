@@ -1,22 +1,19 @@
 import { formatCents, formatDeadline } from '../lib/format';
-import type { PlaceOrderResult } from '../lib/amplify';
-import type { PickupPointView } from '../lib/types';
-
-export interface ConfirmedOrder {
-  result: PlaceOrderResult;
-  customerName: string;
-  pickupPoint: PickupPointView;
-  items: { name: string; quantity: number }[];
-}
+import type { PublicOrderStatus } from '../lib/amplify';
 
 interface ConfirmationProps {
-  order: ConfirmedOrder;
-  onNewOrder: () => void;
+  order: PublicOrderStatus;
 }
 
-export function Confirmation({ order, onNewOrder }: ConfirmationProps) {
-  const { result, pickupPoint } = order;
-  const firstName = order.customerName.split(' ')[0];
+const STATUS_TEXT: Record<string, { title: string; text: string }> = {
+  pago: { title: 'Bezahlt', text: 'Wir bereiten deine Box vor.' },
+  pronto: { title: 'Abholbereit', text: 'Deine Box wartet auf dich.' },
+  retirado: { title: 'Abgeholt', text: 'Guten Appetit!' },
+};
+
+/** Confirmação de um pedido pago (status pago, pronto ou retirado). */
+export function Confirmation({ order }: ConfirmationProps) {
+  const status = STATUS_TEXT[order.status as string] ?? STATUS_TEXT.pago;
 
   return (
     <section className="confirm" aria-labelledby="confirm-title">
@@ -24,67 +21,70 @@ export function Confirmation({ order, onNewOrder }: ConfirmationProps) {
         ✓
       </div>
       <h1 id="confirm-title" className="confirm__title">
-        Danke, {firstName}!
+        Danke, {order.customerFirstName}!
       </h1>
-      <p className="confirm__lead">Deine Bestellung ist bei uns eingegangen.</p>
+      <p className="confirm__lead">Deine Bestellung ist bezahlt und für dich reserviert.</p>
 
       <div className="card confirm__card">
         <p className="label">Bestellnummer</p>
-        <p className="confirm__code">{result.orderCode}</p>
+        <p className="confirm__code">{order.orderCode}</p>
         <p className="confirm__hint">Bitte nenne diese Nummer bei der Abholung.</p>
       </div>
 
       <dl className="card confirm__details">
         <div>
-          <dt>Abholort</dt>
+          <dt>Status</dt>
           <dd>
-            <strong>{pickupPoint.name}</strong>
-            {pickupPoint.address && <span>{pickupPoint.address}</span>}
-            {pickupPoint.openingHours && <span>{pickupPoint.openingHours}</span>}
+            <strong>{status.title}</strong>
+            <span>{status.text}</span>
           </dd>
         </div>
         <div>
-          <dt>Abholung bis</dt>
+          <dt>Abholort</dt>
           <dd>
-            <strong>{formatDeadline(result.pickupDeadline)}</strong>
-            <span>Deine Becher sind 24 Stunden für dich reserviert.</span>
+            <strong>{order.pickupPointName}</strong>
+            {order.pickupPointHours && <span>{order.pickupPointHours}</span>}
           </dd>
         </div>
+        {order.status !== 'retirado' && (
+          <div>
+            <dt>Abholung bis</dt>
+            <dd>
+              <strong>{formatDeadline(order.pickupDeadline)}</strong>
+              <span>Deine Becher sind 24 Stunden ab Zahlung für dich reserviert.</span>
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Deine Box</dt>
           <dd>
-            <strong>{result.boxSize} Becher</strong>
+            <strong>{order.boxSize} Becher</strong>
             <ul className="confirm__items">
               {order.items.map((i) => (
-                <li key={i.name}>
-                  {i.quantity}× {i.name}
+                <li key={i?.flavorId}>
+                  {i?.quantity}× {i?.flavorName}
                 </li>
               ))}
             </ul>
           </dd>
         </div>
         <div>
-          <dt>Summe</dt>
+          <dt>Bezahlt</dt>
           <dd>
-            <strong>{formatCents(result.totalCents)}</strong>
+            <strong>{formatCents(order.totalCents)}</strong>
             <span>
-              Box {formatCents(result.priceCents)} +{' '}
-              {result.pfandCharged ? `Pfand ${formatCents(result.pfandCents)}` : 'kein Pfand'}
+              Box {formatCents(order.priceCents)} +{' '}
+              {order.pfandCharged ? `Pfand ${formatCents(order.pfandCents)}` : 'kein Pfand'}
             </span>
-          </dd>
-        </div>
-        <div>
-          <dt>Status</dt>
-          <dd>
-            <strong>Zahlung ausstehend</strong>
-            <span>Die Online-Zahlung ist bald verfügbar – wir melden uns bei dir.</span>
           </dd>
         </div>
       </dl>
 
-      <button type="button" className="btn btn--ghost" onClick={onNewOrder}>
+      <p className="confirm__hint">Tipp: Speichere diese Seite – hier siehst du jederzeit den Status deiner Bestellung.</p>
+
+      <a className="btn btn--ghost" href="/">
         Neue Bestellung
-      </button>
+      </a>
     </section>
   );
 }

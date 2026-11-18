@@ -1,6 +1,7 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { placeOrder } from '../functions/place-order/resource';
 import { staffOrders } from '../functions/staff-orders/resource';
+import { orderStatus } from '../functions/order-status/resource';
 
 const schema = a.schema({
   OrderStatus: a.enum(['aguardando_pagamento', 'pago', 'pronto', 'retirado', 'cancelado']),
@@ -67,6 +68,14 @@ const schema = a.schema({
       pfandBoxReceived: a.boolean(), // na retirada: staff recebeu a caixa declarada?
       pfandCollectedOnSite: a.boolean(), // caixa não veio → Pfand cobrado no local
       updatedBy: a.string(), // último staff que mudou o status
+      cancelReason: a.string(),
+      // Pagamento (Stripe)
+      stripeSessionId: a.string(),
+      stripePaymentIntentId: a.string(),
+      checkoutUrl: a.string(),
+      checkoutExpiresAt: a.datetime(),
+      paidAt: a.datetime(),
+      paymentAfterCancel: a.boolean(), // pago depois de cancelado → staff deve estornar
       status: a.ref('OrderStatus').required(),
       pickupDeadline: a.datetime().required(),
     })
@@ -92,6 +101,7 @@ const schema = a.schema({
   PlaceOrderResult: a.customType({
     orderId: a.id().required(),
     orderCode: a.string().required(),
+    checkoutUrl: a.string().required(),
     status: a.ref('OrderStatus').required(),
     boxSize: a.integer().required(),
     priceCents: a.integer().required(),
@@ -136,6 +146,35 @@ const schema = a.schema({
     .authorization((allow) => [allow.group('staff')])
     .handler(a.handler.function(staffOrders)),
 
+  /** Visão pública de um pedido (para a página de confirmação). */
+  PublicOrderStatus: a.customType({
+    orderId: a.id().required(),
+    orderCode: a.string().required(),
+    status: a.ref('OrderStatus').required(),
+    customerFirstName: a.string().required(),
+    pickupPointCode: a.string().required(),
+    pickupPointName: a.string().required(),
+    pickupPointHours: a.string(),
+    pickupDeadline: a.datetime().required(),
+    paid: a.boolean().required(),
+    boxSize: a.integer().required(),
+    items: a.ref('OrderItem').required().array().required(),
+    priceCents: a.integer().required(),
+    pfandCents: a.integer().required(),
+    totalCents: a.integer().required(),
+    pfandCharged: a.boolean().required(),
+    checkoutUrl: a.string(), // só enquanto o pagamento ainda é possível
+    checkoutExpiresAt: a.datetime(),
+  }),
+
+  /** Status do pedido pelo ID (UUID não adivinhável), sem login. */
+  getOrderStatus: a
+    .query()
+    .arguments({ orderId: a.id().required() })
+    .returns(a.ref('PublicOrderStatus'))
+    .authorization((allow) => [allow.guest(), allow.group('staff')])
+    .handler(a.handler.function(orderStatus)),
+
   /** Criação de pedido no servidor: confere estoque e preço e reserva os potes. */
   placeOrder: a
     .mutation()
@@ -147,6 +186,7 @@ const schema = a.schema({
       boxSize: a.integer().required(),
       items: a.ref('PlaceOrderItemInput').required().array().required(),
       pfandBoxReturned: a.boolean(),
+      returnOrigin: a.string(), // origem do site (validada no servidor) para voltar do Stripe
     })
     .returns(a.ref('PlaceOrderResult'))
     .authorization((allow) => [allow.guest(), allow.group('staff')])

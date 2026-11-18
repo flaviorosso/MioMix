@@ -540,3 +540,8 @@
     flex-basis: calc(100% - 60px);
   }
 }
+
+.order__notice--alert {
+  background: #fbe9e7;
+  color: var(--error);
+}

@@ -14,6 +14,19 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: 'done', label: 'Erledigt' },
 ];
 
+/** Link do pagamento no painel do Stripe (modo de teste enquanto a chave for sk_test_). */
+const stripePaymentLink = (paymentIntentId: string) =>
+  `https://dashboard.stripe.com/${import.meta.env.VITE_STRIPE_LIVE === 'true' ? '' : 'test/'}payments/${paymentIntentId}`;
+
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Berlin',
+  });
+
 const POINT_NAMES: Record<string, string> = {
   ciaociao: 'Ciao Ciao',
   racchetta: 'La Racchetta',
@@ -146,6 +159,7 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   const isFinal = status === 'retirado' || status === 'cancelado';
+  const isPaid = !!order.paidAt;
   const overdue = !isFinal && new Date(order.pickupDeadline).getTime() < Date.now();
 
   const change = async (next: OrderStatus, pfandBoxReceived?: boolean) => {
@@ -217,6 +231,34 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
         </span>
       </p>
 
+      {order.paymentAfterCancel && (
+        <p className="order__notice order__notice--alert">
+          Zahlung nach der Stornierung eingegangen – bitte im Stripe-Dashboard erstatten.
+          {order.stripePaymentIntentId && (
+            <>
+              {' '}
+              <a href={stripePaymentLink(order.stripePaymentIntentId)} target="_blank" rel="noopener noreferrer">
+                Zahlung öffnen
+              </a>
+            </>
+          )}
+        </p>
+      )}
+      {isPaid && !order.paymentAfterCancel && (
+        <p className="staff-hint">
+          Bezahlt am {formatTime(order.paidAt!)}
+          {order.stripePaymentIntentId && (
+            <>
+              {' · '}
+              <a href={stripePaymentLink(order.stripePaymentIntentId)} target="_blank" rel="noopener noreferrer">
+                in Stripe ansehen
+              </a>
+            </>
+          )}
+        </p>
+      )}
+      {status === 'cancelado' && order.cancelReason && <p className="staff-hint">Grund: {order.cancelReason}</p>}
+
       {order.pfandReturnDeclared && !isFinal && (
         <p className="order__notice">Kunde bringt eine Pfand-Box zurück – bei Abholung bitte prüfen.</p>
       )}
@@ -280,6 +322,12 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
       {confirmCancel && (
         <div className="order__confirm" role="alertdialog" aria-label="Stornierung bestätigen">
           <p>Wirklich stornieren? Die Becher gehen zurück in den Bestand.</p>
+          {isPaid && (
+            <p>
+              <strong>Achtung: Diese Bestellung ist bezahlt.</strong> Der Betrag wird nicht automatisch erstattet – bitte
+              danach im Stripe-Dashboard erstatten.
+            </p>
+          )}
           <div className="order__actions">
             <button type="button" className="btn btn--danger btn--small" disabled={busy} onClick={() => change('cancelado')}>
               Ja, stornieren

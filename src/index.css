@@ -830,3 +830,22 @@ button.card:active {
     scroll-behavior: auto !important;
   }
 }
+
+/* --- Avisos (status do pedido) ------------------------------------------- */
+
+.notice {
+  padding: 48px 0 16px;
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  text-align: center;
+}
+
+.notice p {
+  max-width: 36ch;
+  color: var(--muted);
+}
+
+.notice strong {
+  color: var(--ink);
+}

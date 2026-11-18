@@ -9,3 +9,4 @@ Amplify.configure(outputs);
 export const client = generateClient<Schema>({ authMode: 'identityPool' });
 
 export type PlaceOrderResult = NonNullable<Schema['placeOrder']['returnType']>;
+export type PublicOrderStatus = NonNullable<Schema['getOrderStatus']['returnType']>;

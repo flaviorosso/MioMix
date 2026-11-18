@@ -4,14 +4,11 @@ import {
   GetCommand,
   TransactWriteCommand,
   UpdateCommand,
-  type TransactWriteCommandInput,
 } from '@aws-sdk/lib-dynamodb';
 import type { AppSyncResolverEvent } from 'aws-lambda';
 import type { Schema } from '../../data/resource';
 import { PFAND_CENTS } from '../../../shared/pricing';
-
-type OrderStatus = 'aguardando_pagamento' | 'pago' | 'pronto' | 'retirado' | 'cancelado';
-type TransactItems = NonNullable<TransactWriteCommandInput['TransactItems']>;
+import { buildReleaseItems, type OrderStatus, type TransactItems } from '../_shared/orders';
 
 const env = {
   stockTable: process.env.STOCK_TABLE!,
@@ -78,45 +75,8 @@ async function updateOrderStatus(
 
   // --- Cancelar: devolve potes e desfaz o Pfand -----------------------------
   if (next === 'cancelado') {
-    for (const item of order.items as { flavorId: string; quantity: number }[]) {
-      transact.push({
-        Update: {
-          TableName: env.stockTable,
-          Key: { flavorId: item.flavorId },
-          UpdateExpression: 'SET #q = #q + :n, updatedAt = :now',
-          ConditionExpression: 'attribute_exists(flavorId)',
-          ExpressionAttributeNames: { '#q': 'quantity' },
-          ExpressionAttributeValues: { ':n': item.quantity, ':now': now },
-        },
-      });
-    }
-
-    if (!declared) {
-      // O pedido colocou +1 caixa em uso; se usou crédito, devolve o crédito.
-      const creditUsed =
-        (order.pfandCreditUsedCents as number | undefined) ??
-        (order.pfandCharged === false ? PFAND_CENTS : 0);
-      const { Item: box } = await ddb.send(
-        new GetCommand({ TableName: env.pfandBoxTable, Key: { customerEmail: email } }),
-      );
-      if (box) {
-        const inUse = (box.boxesInUse as number) ?? 0;
-        transact.push({
-          Update: {
-            TableName: env.pfandBoxTable,
-            Key: { customerEmail: email },
-            UpdateExpression: 'SET boxesInUse = :newInUse, creditCents = creditCents + :credit, updatedAt = :now',
-            ConditionExpression: 'boxesInUse = :oldInUse',
-            ExpressionAttributeValues: {
-              ':newInUse': Math.max(0, inUse - 1),
-              ':oldInUse': inUse,
-              ':credit': creditUsed,
-              ':now': now,
-            },
-          },
-        });
-      }
-    }
+    transact.push(...(await buildReleaseItems(ddb, env, order, now)));
+    extraSets.cancelReason = 'Vom Team storniert';
   }
 
   // --- Retirada com Pfand-Rückgabe declarada: staff confirma a caixa ----------

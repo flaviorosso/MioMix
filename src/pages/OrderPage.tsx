@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { BOX_SIZES, CUP_GRAMS, PFAND_CENTS, PRICES_CENTS, type BoxSize } from '../../shared/pricing';
-import { Confirmation, type ConfirmedOrder } from '../components/Confirmation';
 import { Cup } from '../components/Cup';
 import { FlavorCard } from '../components/FlavorCard';
 import { Footer } from '../components/Footer';
 import { client } from '../lib/amplify';
 import { fetchFlavors, fetchPickupPoints } from '../lib/data';
 import { formatCents } from '../lib/format';
-import { loadSession, saveSession } from '../lib/storage';
 import type { FlavorView, PickupPointView } from '../lib/types';
 
-const CONFIRMATION_KEY = 'miomix.lastOrder';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_RE = /^\+?[0-9 ()/-]{6,25}$/;
 
@@ -48,7 +45,6 @@ export function OrderPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [confirmed, setConfirmed] = useState<ConfirmedOrder | null>(() => loadSession(CONFIRMATION_KEY));
 
   const formRef = useRef<HTMLElement>(null);
 
@@ -147,52 +143,26 @@ export function OrderPage() {
         boxSize,
         items: items.map(({ flavorId, quantity }) => ({ flavorId, quantity })),
         pfandBoxReturned: form.pfandReturned,
+        returnOrigin: window.location.origin,
       });
       if (apiErrors?.length || !data) {
         const message = apiErrors?.[0]?.message ?? 'Unbekannter Fehler.';
         setSubmitError(message);
         if (message.includes('Vorrat') || message.includes('nicht verfügbar')) await load();
+        setSubmitting(false);
         return;
       }
-      const order: ConfirmedOrder = {
-        result: data,
-        customerName: form.name.trim(),
-        pickupPoint: selectedPoint,
-        items: items.map(({ name, quantity }) => ({ name, quantity })),
-      };
-      saveSession(CONFIRMATION_KEY, order);
-      setConfirmed(order);
-      window.scrollTo({ top: 0 });
+      // Pedido reservado → pagamento no Stripe Checkout (a página fica bloqueada até sair).
+      window.location.assign(data.checkoutUrl);
+      return;
     } catch (err) {
       console.error(err);
       setSubmitError('Verbindung fehlgeschlagen. Bitte versuche es noch einmal.');
-    } finally {
-      setSubmitting(false);
     }
-  };
-
-  const startNewOrder = () => {
-    saveSession(CONFIRMATION_KEY, null);
-    setConfirmed(null);
-    setQuantities({});
-    setForm((f) => ({ ...f, pfandReturned: false }));
-    setSubmitError('');
-    void load();
-    window.scrollTo({ top: 0 });
+    setSubmitting(false);
   };
 
   // --- Render --------------------------------------------------------------
-  if (confirmed) {
-    return (
-      <div className="page">
-        <main className="main">
-          <Confirmation order={confirmed} onNewOrder={startNewOrder} />
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
   return (
     <div className="page page--with-bar">
       <header className="hero">
@@ -381,10 +351,11 @@ export function OrderPage() {
                 )}
 
                 <button type="submit" className="btn btn--primary btn--block" disabled={submitting}>
-                  {submitting ? 'Wird gesendet …' : 'Bestellung absenden'}
+                  {submitting ? 'Weiterleitung zur Zahlung …' : 'Weiter zur Zahlung'}
                 </button>
                 <p className="form__privacy">
-                  Wir verwenden deine Daten nur für die Abwicklung deiner Bestellung. Mehr dazu in der{' '}
+                  Du bezahlst sicher über unseren Zahlungsanbieter Stripe. Wir verwenden deine Daten nur für die
+                  Abwicklung deiner Bestellung. Mehr dazu in der{' '}
                   <a href="/datenschutz">Datenschutzerklärung</a>.
                 </p>
               </form>
