@@ -2,6 +2,7 @@ import { defineBackend } from '@aws-amplify/backend';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
 import { placeOrder } from './functions/place-order/resource';
+import { staffOrders } from './functions/staff-orders/resource';
 
 /**
  * Backend do Mio Mix (Amplify Gen 2).
@@ -11,6 +12,7 @@ const backend = defineBackend({
   auth,
   data,
   placeOrder,
+  staffOrders,
 });
 
 // Sem cadastro público: contas staff são criadas só pelo administrador.
@@ -33,3 +35,12 @@ backend.placeOrder.addEnvironment('PICKUP_POINT_TABLE', tables['PickupPoint'].ta
 backend.placeOrder.addEnvironment('STOCK_TABLE', tables['Stock'].tableName);
 backend.placeOrder.addEnvironment('ORDER_TABLE', tables['Order'].tableName);
 backend.placeOrder.addEnvironment('PFAND_BOX_TABLE', tables['PfandBox'].tableName);
+
+// A função staff-orders (mudança de status, devolução de Pfand).
+const staffFn = backend.staffOrders.resources.lambda;
+tables['Stock'].grantReadWriteData(staffFn);
+tables['Order'].grantReadWriteData(staffFn);
+tables['PfandBox'].grantReadWriteData(staffFn);
+backend.staffOrders.addEnvironment('STOCK_TABLE', tables['Stock'].tableName);
+backend.staffOrders.addEnvironment('ORDER_TABLE', tables['Order'].tableName);
+backend.staffOrders.addEnvironment('PFAND_BOX_TABLE', tables['PfandBox'].tableName);

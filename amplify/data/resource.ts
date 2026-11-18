@@ -1,5 +1,6 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { placeOrder } from '../functions/place-order/resource';
+import { staffOrders } from '../functions/staff-orders/resource';
 
 const schema = a.schema({
   OrderStatus: a.enum(['aguardando_pagamento', 'pago', 'pronto', 'retirado', 'cancelado']),
@@ -62,10 +63,15 @@ const schema = a.schema({
       pfandCharged: a.boolean().required(),
       // Cliente declarou que devolveu uma caixa: staff confere na retirada.
       pfandReturnDeclared: a.boolean(),
+      pfandCreditUsedCents: a.integer(), // crédito de Pfand usado (devolvido se cancelar)
+      pfandBoxReceived: a.boolean(), // na retirada: staff recebeu a caixa declarada?
+      pfandCollectedOnSite: a.boolean(), // caixa não veio → Pfand cobrado no local
+      updatedBy: a.string(), // último staff que mudou o status
       status: a.ref('OrderStatus').required(),
       pickupDeadline: a.datetime().required(),
     })
-    .authorization((allow) => [allow.group('staff').to(['read', 'update'])]),
+    // Staff só lê; mudanças de status passam por updateOrderStatus (estoque/Pfand consistentes).
+    .authorization((allow) => [allow.group('staff').to(['read'])]),
 
   /** Caixas com Pfand por cliente (e-mail). */
   PfandBox: a
@@ -94,6 +100,41 @@ const schema = a.schema({
     pfandCharged: a.boolean().required(),
     pickupDeadline: a.datetime().required(),
   }),
+
+  StaffOrderUpdateResult: a.customType({
+    orderId: a.id().required(),
+    status: a.ref('OrderStatus').required(),
+  }),
+
+  PfandReturnResult: a.customType({
+    customerEmail: a.string().required(),
+    boxesInUse: a.integer().required(),
+    boxesReturned: a.integer().required(),
+    creditCents: a.integer().required(),
+  }),
+
+  /** Staff: muda o status do pedido. Cancelar devolve potes e desfaz o Pfand. */
+  updateOrderStatus: a
+    .mutation()
+    .arguments({
+      orderId: a.id().required(),
+      status: a.ref('OrderStatus').required(),
+      pfandBoxReceived: a.boolean(), // obrigatório ao marcar "retirado" com Pfand-Rückgabe
+    })
+    .returns(a.ref('StaffOrderUpdateResult'))
+    .authorization((allow) => [allow.group('staff')])
+    .handler(a.handler.function(staffOrders)),
+
+  /** Staff: cliente devolve caixas sem pedido → crédito de Pfand. */
+  registerPfandReturn: a
+    .mutation()
+    .arguments({
+      customerEmail: a.string().required(),
+      boxes: a.integer().required(),
+    })
+    .returns(a.ref('PfandReturnResult'))
+    .authorization((allow) => [allow.group('staff')])
+    .handler(a.handler.function(staffOrders)),
 
   /** Criação de pedido no servidor: confere estoque e preço e reserva os potes. */
   placeOrder: a

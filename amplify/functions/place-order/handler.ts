@@ -147,6 +147,7 @@ export const handler: Handler = async (event) => {
           totalCents,
           pfandCharged,
           pfandReturnDeclared,
+          pfandCreditUsedCents: useCredit ? PFAND_CENTS : 0,
           status,
           pickupDeadline,
           createdAt: nowIso,
