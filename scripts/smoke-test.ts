@@ -50,6 +50,23 @@ const denied = async (label: string, fn: () => Promise<{ data: unknown; errors?:
 await denied('pedidos', () => client.models.Order.list());
 await denied('PfandBox', () => client.models.PfandBox.list());
 
+// 3b. Ações de staff: visitante não pode chamar (IDs falsos — nada é alterado)
+const deniedCall = async (label: string, fn: () => Promise<{ errors?: { message: string; errorType?: string }[] }>) => {
+  try {
+    const r = await fn();
+    const msg = r.errors?.[0]?.message ?? '';
+    check(/unauthorized|not authorized/i.test(msg + (r.errors?.[0]?.errorType ?? '')), `Visitante NÃO chama ${label} (${msg || 'sem erro!'})`);
+  } catch (e) {
+    check(true, `Visitante NÃO chama ${label} (${e instanceof Error ? e.message : String(e)})`);
+  }
+};
+await deniedCall('updateOrderStatus', () =>
+  client.mutations.updateOrderStatus({ orderId: 'nao-existe', status: 'cancelado' }),
+);
+await deniedCall('registerPfandReturn', () =>
+  client.mutations.registerPfandReturn({ customerEmail: 'nao-existe@example.com', boxes: 1 }),
+);
+
 // 4. Pedido de teste
 if (process.argv.includes('--order')) {
   const before = await client.models.Stock.get({ flavorId: 'vanille' });
