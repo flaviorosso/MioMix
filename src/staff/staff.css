@@ -603,3 +603,24 @@
     font-size: 0.78rem;
   }
 }
+
+.staff-top__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.staff-login__header .lang-switch {
+  margin-bottom: 12px;
+}
+
+.flavor-form__lang {
+  margin: 4px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}

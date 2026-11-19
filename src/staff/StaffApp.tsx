@@ -3,6 +3,9 @@ import { Authenticator, translations, useAuthenticator } from '@aws-amplify/ui-r
 import '@aws-amplify/ui-react/styles.css';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { I18n } from 'aws-amplify/utils';
+import { LangSwitcher } from '../components/LangSwitcher';
+import { LangProvider } from '../i18n/LangContext';
+import { STAFF_LANG_KEY, STAFF_LANGS, useStaffI18n } from '../i18n/staff';
 import { FlavorsTab } from './FlavorsTab';
 import { OrdersTab } from './OrdersTab';
 import { PfandTab } from './PfandTab';
@@ -11,32 +14,46 @@ import { StockTab } from './StockTab';
 import './staff.css';
 
 I18n.putVocabularies(translations);
-I18n.setLanguage('de');
 
 type Tab = 'orders' | 'stock' | 'flavors' | 'pfand' | 'points';
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'orders', label: 'Bestellungen' },
-  { id: 'stock', label: 'Bestand' },
-  { id: 'flavors', label: 'Sorten' },
-  { id: 'pfand', label: 'Pfand' },
-  { id: 'points', label: 'Orte' },
-];
+const TAB_IDS: Tab[] = ['orders', 'stock', 'flavors', 'pfand', 'points'];
 
-const authComponents = {
-  Header() {
-    return (
-      <div className="staff-login__header">
-        <p className="hero__brand">Mio Mix</p>
-        <h1>Team-Bereich</h1>
-      </div>
-    );
-  },
-};
+function StaffLangSwitcher() {
+  const { lang, setLang, t } = useStaffI18n();
+  return <LangSwitcher langs={STAFF_LANGS} value={lang} onChange={setLang} label={t.langLabel} />;
+}
+
+function LoginHeader() {
+  const { t } = useStaffI18n();
+  return (
+    <div className="staff-login__header">
+      <StaffLangSwitcher />
+      <p className="hero__brand">Mio Mix</p>
+      <h1>{t.shell.teamArea}</h1>
+    </div>
+  );
+}
+
+const authComponents = { Header: LoginHeader };
 
 export default function StaffApp() {
   return (
+    <LangProvider supported={STAFF_LANGS} fallback="de" storageKey={STAFF_LANG_KEY}>
+      <StaffRoot />
+    </LangProvider>
+  );
+}
+
+function StaffRoot() {
+  const { lang } = useStaffI18n();
+  // Textos da tela de login (Amplify) no idioma do painel.
+  I18n.setLanguage(lang);
+  useEffect(() => {
+    document.title = 'Mio Mix – Team';
+  }, []);
+  return (
     <div className="staff">
-      <Authenticator hideSignUp components={authComponents}>
+      <Authenticator key={lang} hideSignUp components={authComponents}>
         <StaffShell />
       </Authenticator>
     </div>
@@ -44,6 +61,7 @@ export default function StaffApp() {
 }
 
 function StaffShell() {
+  const { t } = useStaffI18n();
   const { user, signOut } = useAuthenticator((ctx) => [ctx.user]);
   const [isStaff, setIsStaff] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>('orders');
@@ -57,15 +75,15 @@ function StaffShell() {
       .catch(() => setIsStaff(false));
   }, [user]);
 
-  if (isStaff === null) return <p className="status">Wird geladen …</p>;
+  if (isStaff === null) return <p className="status">{t.loading}</p>;
 
   if (!isStaff) {
     return (
       <div className="staff-denied">
-        <h1>Kein Zugriff</h1>
-        <p>Dein Konto ist nicht für den Team-Bereich freigeschaltet.</p>
+        <h1>{t.shell.noAccessTitle}</h1>
+        <p>{t.shell.noAccessText}</p>
         <button type="button" className="btn btn--ghost" onClick={signOut}>
-          Abmelden
+          {t.shell.signOut}
         </button>
       </div>
     );
@@ -78,21 +96,24 @@ function StaffShell() {
           <p className="hero__brand">Mio Mix</p>
           <p className="staff-top__user">{user?.signInDetails?.loginId}</p>
         </div>
-        <button type="button" className="link-btn" onClick={signOut}>
-          Abmelden
-        </button>
+        <div className="staff-top__actions">
+          <StaffLangSwitcher />
+          <button type="button" className="link-btn" onClick={signOut}>
+            {t.shell.signOut}
+          </button>
+        </div>
       </header>
 
-      <nav className="staff-tabs" aria-label="Bereiche">
-        {TABS.map((t) => (
+      <nav className="staff-tabs" aria-label={t.shell.areas}>
+        {TAB_IDS.map((id) => (
           <button
-            key={t.id}
+            key={id}
             type="button"
-            className={`staff-tabs__btn${tab === t.id ? ' is-active' : ''}`}
-            aria-current={tab === t.id ? 'page' : undefined}
-            onClick={() => setTab(t.id)}
+            className={`staff-tabs__btn${tab === id ? ' is-active' : ''}`}
+            aria-current={tab === id ? 'page' : undefined}
+            onClick={() => setTab(id)}
           >
-            {t.label}
+            {t.shell.tabs[id]}
           </button>
         ))}
       </nav>

@@ -5,7 +5,7 @@ import type { FlavorView, PickupPointView } from './types';
 export async function fetchFlavors(): Promise<FlavorView[]> {
   const { data, errors } = await client.models.Flavor.list({
     filter: { active: { eq: true } },
-    selectionSet: ['id', 'name', 'description', 'allergens', 'color', 'sortOrder', 'stock.quantity'],
+    selectionSet: ['id', 'name', 'description', 'allergens', 'translations', 'color', 'sortOrder', 'stock.quantity'],
     limit: 200,
   });
   if (errors?.length) throw new Error(errors[0].message);
@@ -16,6 +16,7 @@ export async function fetchFlavors(): Promise<FlavorView[]> {
       name: f.name,
       description: f.description ?? '',
       allergens: (f.allergens ?? []).filter((a): a is string => !!a),
+      translations: f.translations,
       color: f.color,
       stock: f.stock?.quantity ?? 0,
     }))
@@ -33,5 +34,6 @@ export async function fetchPickupPoints(): Promise<PickupPointView[]> {
       name: p.name,
       address: p.address ?? '',
       openingHours: p.openingHours ?? '',
+      weeklyHours: p.weeklyHours,
     }));
 }

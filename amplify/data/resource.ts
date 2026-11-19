@@ -21,6 +21,8 @@ const schema = a.schema({
       color: a.string().required(), // hex, para o desenho do pote
       active: a.boolean().required(),
       sortOrder: a.integer(),
+      // Traduções opcionais: { pt: { name, description, allergens[] }, en: {…} }. Sem tradução → alemão.
+      translations: a.json(),
       stock: a.hasOne('Stock', 'flavorId'),
     })
     .authorization((allow) => [allow.guest().to(['read']), allow.authenticated('identityPool').to(['read']), allow.group('staff')]),
@@ -79,6 +81,7 @@ const schema = a.schema({
       paymentAfterCancel: a.boolean(), // pago depois de cancelado → staff deve estornar
       status: a.ref('OrderStatus').required(),
       pickupDeadline: a.datetime().required(),
+      language: a.string(), // idioma do cliente no pedido: de | pt | en
     })
     // Staff só lê; mudanças de status passam por updateOrderStatus (estoque/Pfand consistentes).
     .authorization((allow) => [allow.group('staff').to(['read'])]),
@@ -131,6 +134,7 @@ const schema = a.schema({
       orderId: a.id().required(),
       status: a.ref('OrderStatus').required(),
       pfandBoxReceived: a.boolean(), // obrigatório ao marcar "retirado" com Pfand-Rückgabe
+      language: a.string(), // idioma das mensagens de erro: de | pt
     })
     .returns(a.ref('StaffOrderUpdateResult'))
     .authorization((allow) => [allow.group('staff')])
@@ -142,6 +146,7 @@ const schema = a.schema({
     .arguments({
       customerEmail: a.string().required(),
       boxes: a.integer().required(),
+      language: a.string(),
     })
     .returns(a.ref('PfandReturnResult'))
     .authorization((allow) => [allow.group('staff')])
@@ -156,6 +161,7 @@ const schema = a.schema({
     pickupPointCode: a.string().required(),
     pickupPointName: a.string().required(),
     pickupPointHours: a.string(),
+    pickupPointWeeklyHours: a.json(),
     pickupDeadline: a.datetime().required(),
     paid: a.boolean().required(),
     boxSize: a.integer().required(),
@@ -171,7 +177,7 @@ const schema = a.schema({
   /** Status do pedido pelo ID (UUID não adivinhável), sem login. */
   getOrderStatus: a
     .query()
-    .arguments({ orderId: a.id().required() })
+    .arguments({ orderId: a.id().required(), language: a.string() })
     .returns(a.ref('PublicOrderStatus'))
     .authorization((allow) => [allow.guest(), allow.authenticated('identityPool'), allow.group('staff')])
     .handler(a.handler.function(orderStatus)),
@@ -188,6 +194,7 @@ const schema = a.schema({
       items: a.ref('PlaceOrderItemInput').required().array().required(),
       pfandBoxReturned: a.boolean(),
       returnOrigin: a.string(), // origem do site (validada no servidor) para voltar do Stripe
+      language: a.string(), // de | pt | en (mensagens, Stripe e e-mails)
     })
     .returns(a.ref('PlaceOrderResult'))
     .authorization((allow) => [allow.guest(), allow.authenticated('identityPool'), allow.group('staff')])

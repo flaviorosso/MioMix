@@ -12,7 +12,70 @@ import type { Schema } from '../../data/resource';
 // Preços e regras: fonte única compartilhada com a página (o servidor recalcula sempre).
 import { PFAND_CENTS, PICKUP_WINDOW_HOURS, PRICES_CENTS, isBoxSize } from '../../../shared/pricing';
 import { ALLOWED_ORIGINS, DEFAULT_ORIGIN, PAYMENT_WINDOW_MINUTES } from '../../../shared/payment';
+import { STRIPE_LOCALE, localizeFlavor, normalizeLang, type Lang } from '../../../shared/lang';
 import { cancelOrder } from '../_shared/orders';
+
+/** Mensagens mostradas ao cliente, nos três idiomas do site. */
+const MSG = {
+  name: { de: 'Bitte gib deinen Namen an.', pt: 'Por favor, informe seu nome.', en: 'Please enter your name.' },
+  email: {
+    de: 'Bitte gib eine gültige E-Mail-Adresse an.',
+    pt: 'Por favor, informe um e-mail válido.',
+    en: 'Please enter a valid email address.',
+  },
+  phone: {
+    de: 'Bitte gib eine gültige Telefonnummer an.',
+    pt: 'Por favor, informe um telefone válido.',
+    en: 'Please enter a valid phone number.',
+  },
+  boxSize: {
+    de: 'Ungültige Boxgröße. Erlaubt sind 4, 6 oder 8 Becher.',
+    pt: 'Tamanho de box inválido. São permitidos 4, 6 ou 8 potes.',
+    en: 'Invalid box size. Allowed are 4, 6 or 8 cups.',
+  },
+  quantity: { de: 'Ungültige Menge im Warenkorb.', pt: 'Quantidade inválida.', en: 'Invalid quantity.' },
+  exactCups: {
+    de: (n: number) => `Bitte wähle genau ${n} Becher für deine Box.`,
+    pt: (n: number) => `Escolha exatamente ${n} potes para a sua box.`,
+    en: (n: number) => `Please choose exactly ${n} cups for your box.`,
+  },
+  point: { de: 'Unbekannter Abholort.', pt: 'Ponto de retirada desconhecido.', en: 'Unknown pickup location.' },
+  unavailable: {
+    de: 'Eine der gewählten Sorten ist nicht verfügbar.',
+    pt: 'Um dos sabores escolhidos não está disponível.',
+    en: 'One of the chosen flavours is not available.',
+  },
+  soldOut: {
+    de: (list: string) => `Leider nicht mehr genug Vorrat: ${list}.`,
+    pt: (list: string) => `Infelizmente não há mais estoque suficiente: ${list}.`,
+    en: (list: string) => `Sorry, not enough left of: ${list}.`,
+  },
+  notSaved: {
+    de: 'Deine Bestellung konnte nicht gespeichert werden. Bitte versuche es erneut.',
+    pt: 'Não foi possível salvar o seu pedido. Tente novamente.',
+    en: 'Your order could not be saved. Please try again.',
+  },
+  internal: {
+    de: 'Interner Fehler. Bitte versuche es später erneut.',
+    pt: 'Erro interno. Tente novamente mais tarde.',
+    en: 'Internal error. Please try again later.',
+  },
+  payment: {
+    de: 'Die Zahlung konnte gerade nicht gestartet werden. Bitte versuche es erneut.',
+    pt: 'Não foi possível iniciar o pagamento agora. Tente novamente.',
+    en: 'The payment could not be started right now. Please try again.',
+  },
+  boxName: {
+    de: (n: number) => `Gelato-Box mit ${n} Bechern`,
+    pt: (n: number) => `Box de gelato com ${n} potes`,
+    en: (n: number) => `Gelato box with ${n} cups`,
+  },
+  pfandName: {
+    de: 'Pfand für Mehrweg-Box',
+    pt: 'Caução (Pfand) da box reutilizável',
+    en: 'Deposit (Pfand) for reusable box',
+  },
+} satisfies Record<string, Record<Lang, unknown>>;
 
 let stripeClient: Stripe | undefined;
 const stripe = () => (stripeClient ??= new Stripe(process.env.STRIPE_SECRET_KEY!));
@@ -34,7 +97,7 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true },
 });
 
-/** Erro de validação: a mensagem (em alemão) é mostrada ao cliente. */
+/** Erro de validação: a mensagem (no idioma do cliente) é mostrada na página. */
 class OrderError extends Error {}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -44,6 +107,7 @@ type Handler = Schema['placeOrder']['functionHandler'];
 
 export const handler: Handler = async (event) => {
   const args = event.arguments;
+  const lang = normalizeLang(args.language);
 
   // --- 1. Validação dos dados do cliente ------------------------------------
   const customerName = args.customerName.trim();
@@ -53,17 +117,17 @@ export const handler: Handler = async (event) => {
   const boxSize = args.boxSize;
 
   if (customerName.length < 2 || customerName.length > 100) {
-    throw new OrderError('Bitte gib deinen Namen an.');
+    throw new OrderError(MSG.name[lang]);
   }
   if (!EMAIL_RE.test(customerEmail) || customerEmail.length > 254) {
-    throw new OrderError('Bitte gib eine gültige E-Mail-Adresse an.');
+    throw new OrderError(MSG.email[lang]);
   }
   if (!PHONE_RE.test(customerPhone)) {
-    throw new OrderError('Bitte gib eine gültige Telefonnummer an.');
+    throw new OrderError(MSG.phone[lang]);
   }
 
   if (!isBoxSize(boxSize)) {
-    throw new OrderError('Ungültige Boxgröße. Erlaubt sind 4, 6 oder 8 Becher.');
+    throw new OrderError(MSG.boxSize[lang]);
   }
   const priceCents = PRICES_CENTS[boxSize];
 
@@ -71,13 +135,13 @@ export const handler: Handler = async (event) => {
   const quantities = new Map<string, number>();
   for (const item of args.items ?? []) {
     if (!item || !Number.isInteger(item.quantity) || item.quantity < 1) {
-      throw new OrderError('Ungültige Menge im Warenkorb.');
+      throw new OrderError(MSG.quantity[lang]);
     }
     quantities.set(item.flavorId, (quantities.get(item.flavorId) ?? 0) + item.quantity);
   }
   const totalCups = [...quantities.values()].reduce((sum, q) => sum + q, 0);
   if (quantities.size === 0 || totalCups !== boxSize) {
-    throw new OrderError(`Bitte wähle genau ${boxSize} Becher für deine Box.`);
+    throw new OrderError(MSG.exactCups[lang](boxSize));
   }
 
   // --- 2. Ponto de retirada e sabores (lidos no servidor) -------------------
@@ -85,7 +149,7 @@ export const handler: Handler = async (event) => {
     new GetCommand({ TableName: env.pickupPointTable, Key: { code: pickupPointCode } }),
   );
   if (!pickup.Item || pickup.Item.active === false) {
-    throw new OrderError('Unbekannter Abholort.');
+    throw new OrderError(MSG.point[lang]);
   }
 
   const flavorIds = [...quantities.keys()];
@@ -95,9 +159,14 @@ export const handler: Handler = async (event) => {
   const items = flavorIds.map((flavorId, i) => {
     const flavor = flavors[i].Item;
     if (!flavor || flavor.active !== true) {
-      throw new OrderError('Eine der gewählten Sorten ist nicht verfügbar.');
+      throw new OrderError(MSG.unavailable[lang]);
     }
-    return { flavorId, flavorName: flavor.name as string, quantity: quantities.get(flavorId)! };
+    return {
+      flavorId,
+      flavorName: flavor.name as string, // sempre em alemão (painel staff)
+      localName: localizeFlavor({ name: flavor.name as string }, flavor.translations, lang).name,
+      quantity: quantities.get(flavorId)!,
+    };
   });
 
   // --- 3. Pfand -------------------------------------------------------------
@@ -147,7 +216,7 @@ export const handler: Handler = async (event) => {
           customerEmail,
           customerPhone,
           pickupPointCode,
-          items,
+          items: items.map(({ flavorId, flavorName, quantity }) => ({ flavorId, flavorName, quantity })),
           boxSize,
           priceCents,
           pfandCents,
@@ -157,6 +226,7 @@ export const handler: Handler = async (event) => {
           pfandCreditUsedCents: useCredit ? PFAND_CENTS : 0,
           status,
           pickupDeadline,
+          language: lang,
           createdAt: nowIso,
           updatedAt: nowIso,
         },
@@ -193,14 +263,14 @@ export const handler: Handler = async (event) => {
       const reasons = err.CancellationReasons ?? [];
       const soldOut = items
         .filter((_, i) => reasons[i]?.Code === 'ConditionalCheckFailed')
-        .map((item) => item.flavorName);
+        .map((item) => item.localName);
       if (soldOut.length > 0) {
-        throw new OrderError(`Leider nicht mehr genug Vorrat: ${soldOut.join(', ')}.`);
+        throw new OrderError(MSG.soldOut[lang](soldOut.join(', ')));
       }
-      throw new OrderError('Deine Bestellung konnte nicht gespeichert werden. Bitte versuche es erneut.');
+      throw new OrderError(MSG.notSaved[lang]);
     }
     console.error('placeOrder failed', err);
-    throw new Error('Interner Fehler. Bitte versuche es später erneut.');
+    throw new Error(MSG.internal[lang]);
   }
 
   // --- 5. Sessão de pagamento no Stripe Checkout ----------------------------
@@ -210,7 +280,7 @@ export const handler: Handler = async (event) => {
   try {
     const session = await stripe().checkout.sessions.create({
       mode: 'payment',
-      locale: 'de',
+      locale: STRIPE_LOCALE[lang],
       customer_email: customerEmail,
       client_reference_id: orderId,
       metadata: { orderId, orderCode },
@@ -226,8 +296,8 @@ export const handler: Handler = async (event) => {
             currency: 'eur',
             unit_amount: priceCents,
             product_data: {
-              name: `Gelato-Box mit ${boxSize} Bechern`,
-              description: items.map((i) => `${i.quantity}× ${i.flavorName}`).join(', '),
+              name: MSG.boxName[lang](boxSize),
+              description: items.map((i) => `${i.quantity}× ${i.localName}`).join(', '),
             },
           },
         },
@@ -238,7 +308,7 @@ export const handler: Handler = async (event) => {
                 price_data: {
                   currency: 'eur',
                   unit_amount: pfandCents,
-                  product_data: { name: 'Pfand für Mehrweg-Box' },
+                  product_data: { name: MSG.pfandName[lang] },
                 },
               },
             ]
@@ -270,7 +340,7 @@ export const handler: Handler = async (event) => {
       by: 'system',
       reason: 'Zahlung konnte nicht gestartet werden',
     }).catch((e) => console.error('rollback failed', e));
-    throw new OrderError('Die Zahlung konnte gerade nicht gestartet werden. Bitte versuche es erneut.');
+    throw new OrderError(MSG.payment[lang]);
   }
 
   return {

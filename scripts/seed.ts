@@ -11,6 +11,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { BatchWriteCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { formatWeeklyHours, type OpeningDay } from '../shared/hours';
+import { FLAVOR_TRANSLATIONS } from './flavor-translations';
 
 const apiId = process.argv[2];
 if (!apiId) {
@@ -57,7 +58,13 @@ async function batchPut(tableName: string, items: Record<string, unknown>[]) {
 
 await batchPut(
   table('Flavor'),
-  flavors.map(({ stock: _stock, ...f }, i) => ({ ...f, active: true, sortOrder: i + 1, ...meta('Flavor') })),
+  flavors.map(({ stock: _stock, ...f }, i) => ({
+    ...f,
+    translations: JSON.stringify(FLAVOR_TRANSLATIONS[f.id] ?? {}),
+    active: true,
+    sortOrder: i + 1,
+    ...meta('Flavor'),
+  })),
 );
 await batchPut(
   table('Stock'),

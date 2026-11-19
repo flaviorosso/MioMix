@@ -1,25 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatCents, formatDeadline } from '../lib/format';
-import { STATUS_LABEL, errorMessage, staffClient, type Order, type OrderStatus } from './client';
+import { LOCALE } from '../../shared/lang';
+import { useStaffI18n, type StaffLang } from '../i18n/staff';
+import { errorMessage, staffClient, type Order, type OrderStatus } from './client';
 
 const REFRESH_MS = 30_000;
 const OPEN: OrderStatus[] = ['aguardando_pagamento', 'pago', 'pronto'];
 
-type Filter = 'open' | OrderStatus | 'done';
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'open', label: 'Offen' },
-  { id: 'aguardando_pagamento', label: 'Zahlung offen' },
-  { id: 'pago', label: 'Bezahlt' },
-  { id: 'pronto', label: 'Abholbereit' },
-  { id: 'done', label: 'Erledigt' },
-];
+type Filter = 'open' | 'aguardando_pagamento' | 'pago' | 'pronto' | 'done';
+const FILTER_IDS: Filter[] = ['open', 'aguardando_pagamento', 'pago', 'pronto', 'done'];
+
+/** Nome do idioma do cliente, para o staff saber em que língua falar com ele. */
+const CUSTOMER_LANG_NAME: Record<StaffLang, Record<string, string>> = {
+  de: { de: 'Deutsch', pt: 'Portugiesisch', en: 'Englisch' },
+  pt: { de: 'alemão', pt: 'português', en: 'inglês' },
+};
 
 /** Link do pagamento no painel do Stripe (modo de teste enquanto a chave for sk_test_). */
 const stripePaymentLink = (paymentIntentId: string) =>
   `https://dashboard.stripe.com/${import.meta.env.VITE_STRIPE_LIVE === 'true' ? '' : 'test/'}payments/${paymentIntentId}`;
 
-const formatTime = (iso: string) =>
-  new Date(iso).toLocaleString('de-DE', {
+const formatTime = (iso: string, lang: StaffLang) =>
+  new Date(iso).toLocaleString(LOCALE[lang], {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -45,6 +47,8 @@ async function fetchAllOrders(): Promise<Order[]> {
 }
 
 export function OrdersTab() {
+  const { lang, t: tt } = useStaffI18n();
+  const t = tt.orders;
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -59,11 +63,11 @@ export function OrdersTab() {
       setLastLoaded(new Date());
     } catch (err) {
       console.error(err);
-      setLoadError('Bestellungen konnten nicht geladen werden.');
+      setLoadError(t.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -96,31 +100,31 @@ export function OrdersTab() {
     <section>
       <div className="staff-toolbar">
         <div className="chips" role="tablist" aria-label="Status">
-          {FILTERS.map((f) => {
+          {FILTER_IDS.map((id) => {
             const n =
-              f.id === 'open'
+              id === 'open'
                 ? OPEN.reduce((s, st) => s + (counts[st] ?? 0), 0)
-                : f.id === 'done'
+                : id === 'done'
                   ? null
-                  : (counts[f.id] ?? 0);
+                  : (counts[id] ?? 0);
             return (
               <button
-                key={f.id}
+                key={id}
                 type="button"
                 role="tab"
-                aria-selected={filter === f.id}
-                className={`chip${filter === f.id ? ' is-active' : ''}`}
-                onClick={() => setFilter(f.id)}
+                aria-selected={filter === id}
+                className={`chip${filter === id ? ' is-active' : ''}`}
+                onClick={() => setFilter(id)}
               >
-                {f.label}
+                {t.filters[id]}
                 {n !== null && <span className="chip__count">{n}</span>}
               </button>
             );
           })}
         </div>
         <div className="staff-toolbar__row">
-          <select value={point} onChange={(e) => setPoint(e.target.value)} aria-label="Abholort">
-            <option value="all">Alle Abholorte</option>
+          <select value={point} onChange={(e) => setPoint(e.target.value)} aria-label={t.pointAria}>
+            <option value="all">{t.allPoints}</option>
             {Object.entries(POINT_NAMES).map(([code, name]) => (
               <option key={code} value={code}>
                 {name}
@@ -128,20 +132,19 @@ export function OrdersTab() {
             ))}
           </select>
           <button type="button" className="btn btn--ghost btn--small" onClick={() => void load()}>
-            Aktualisieren
+            {t.refresh}
           </button>
         </div>
         {lastLoaded && (
           <p className="staff-hint">
-            Stand {lastLoaded.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · aktualisiert sich
-            alle 30 Sekunden
+            {t.lastLoaded(lastLoaded.toLocaleTimeString(LOCALE[lang], { hour: '2-digit', minute: '2-digit' }))}
           </p>
         )}
       </div>
 
-      {loading && <p className="status">Wird geladen …</p>}
+      {loading && <p className="status">{tt.loading}</p>}
       {loadError && <p className="form__error">{loadError}</p>}
-      {!loading && !loadError && visible.length === 0 && <p className="status">Keine Bestellungen.</p>}
+      {!loading && !loadError && visible.length === 0 && <p className="status">{t.none}</p>}
 
       <div className="order-list">
         {visible.map((o) => (
@@ -153,6 +156,9 @@ export function OrdersTab() {
 }
 
 function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promise<void> }) {
+  const { lang, t: tt } = useStaffI18n();
+  const t = tt.orders;
+  const money = (cents: number) => formatCents(cents, lang);
   const status = order.status as OrderStatus;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -170,16 +176,17 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
         orderId: order.id,
         status: next,
         pfandBoxReceived,
+        language: lang,
       });
       if (res.errors?.length) {
-        setError(errorMessage(res.errors));
+        setError(errorMessage(res.errors, tt.unknownError));
         return;
       }
       setConfirmCancel(false);
       await onChanged();
     } catch (err) {
       console.error(err);
-      setError('Verbindung fehlgeschlagen.');
+      setError(tt.connectionFailed);
     } finally {
       setBusy(false);
     }
@@ -189,7 +196,7 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
     <article className={`order card status--${status}${overdue ? ' order--overdue' : ''}`}>
       <header className="order__head">
         <span className="order__code">{order.orderCode ?? order.id.slice(0, 8)}</span>
-        <span className={`badge badge--${status}`}>{STATUS_LABEL[status]}</span>
+        <span className={`badge badge--${status}`}>{tt.status[status]}</span>
       </header>
 
       <div className="order__grid">
@@ -206,8 +213,8 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
             <strong>{POINT_NAMES[order.pickupPointCode] ?? order.pickupPointCode}</strong>
           </p>
           <p className={overdue ? 'order__deadline--overdue' : ''}>
-            {overdue ? 'Abholfrist abgelaufen: ' : 'Abholung bis '}
-            {formatDeadline(order.pickupDeadline)}
+            {overdue ? t.overdue : t.pickupBy}
+            {formatDeadline(order.pickupDeadline, lang)}
           </p>
         </div>
       </div>
@@ -221,24 +228,20 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
       </ul>
 
       <p className="order__price">
-        Box {order.boxSize} · {formatCents(order.totalCents)}
+        {t.box(order.boxSize)} · {money(order.totalCents)}
         <span>
-          {order.pfandCharged
-            ? ` (inkl. ${formatCents(order.pfandCents)} Pfand)`
-            : order.pfandReturnDeclared
-              ? ' (ohne Pfand)'
-              : ' (Pfand mit Guthaben verrechnet)'}
+          {order.pfandCharged ? t.inclPfand(money(order.pfandCents)) : order.pfandReturnDeclared ? t.noPfand : t.pfandCredit}
         </span>
       </p>
 
       {order.paymentAfterCancel && (
         <p className="order__notice order__notice--alert">
-          Zahlung nach der Stornierung eingegangen – bitte im Stripe-Dashboard erstatten.
+          {t.paidAfterCancel}
           {order.stripePaymentIntentId && (
             <>
               {' '}
               <a href={stripePaymentLink(order.stripePaymentIntentId)} target="_blank" rel="noopener noreferrer">
-                Zahlung öffnen
+                {t.openPayment}
               </a>
             </>
           )}
@@ -246,28 +249,31 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
       )}
       {isPaid && !order.paymentAfterCancel && (
         <p className="staff-hint">
-          Bezahlt am {formatTime(order.paidAt!)}
+          {t.paidAt(formatTime(order.paidAt!, lang))}
           {order.stripePaymentIntentId && (
             <>
               {' · '}
               <a href={stripePaymentLink(order.stripePaymentIntentId)} target="_blank" rel="noopener noreferrer">
-                in Stripe ansehen
+                {t.viewInStripe}
               </a>
             </>
           )}
         </p>
       )}
-      {status === 'cancelado' && order.cancelReason && <p className="staff-hint">Grund: {order.cancelReason}</p>}
+      {status === 'cancelado' && order.cancelReason && <p className="staff-hint">{t.reason(order.cancelReason)}</p>}
+      {order.language && order.language !== 'de' && (
+        <p className="staff-hint">{t.customerLang(CUSTOMER_LANG_NAME[lang][order.language] ?? order.language)}</p>
+      )}
 
       {order.pfandReturnDeclared && !isFinal && (
-        <p className="order__notice">Kunde bringt eine Pfand-Box zurück – bei Abholung bitte prüfen.</p>
+        <p className="order__notice">{t.bringsBox}</p>
       )}
       {status === 'retirado' && order.pfandReturnDeclared && (
         <p className="order__notice order__notice--muted">
-          {order.pfandCollectedOnSite ? 'Keine Box zurückgegeben – Pfand vor Ort kassiert.' : 'Pfand-Box erhalten.'}
+          {order.pfandCollectedOnSite ? t.noBoxCollected : t.boxReceived}
         </p>
       )}
-      {order.updatedBy && isFinal && <p className="staff-hint">Zuletzt geändert von {order.updatedBy}</p>}
+      {order.updatedBy && isFinal && <p className="staff-hint">{t.lastChangedBy(order.updatedBy)}</p>}
 
       {error && <p className="form__error">{error}</p>}
 
@@ -275,12 +281,12 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
         <div className="order__actions">
           {status === 'aguardando_pagamento' && (
             <button type="button" className="btn btn--primary btn--small" disabled={busy} onClick={() => change('pago')}>
-              Als bezahlt markieren
+              {t.markPaid}
             </button>
           )}
           {status === 'pago' && (
             <button type="button" className="btn btn--primary btn--small" disabled={busy} onClick={() => change('pronto')}>
-              Abholbereit
+              {t.markReady}
             </button>
           )}
           {status === 'pronto' &&
@@ -292,7 +298,7 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
                   disabled={busy}
                   onClick={() => change('retirado', true)}
                 >
-                  Abgeholt – Box erhalten
+                  {t.pickedUpWithBox}
                 </button>
                 <button
                   type="button"
@@ -300,7 +306,7 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
                   disabled={busy}
                   onClick={() => change('retirado', false)}
                 >
-                  Abgeholt – ohne Box (Pfand kassiert)
+                  {t.pickedUpNoBox}
                 </button>
               </>
             ) : (
@@ -310,30 +316,29 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => Promis
                 disabled={busy}
                 onClick={() => change('retirado')}
               >
-                Abgeholt
+                {t.pickedUp}
               </button>
             ))}
           <button type="button" className="link-btn link-btn--danger" disabled={busy} onClick={() => setConfirmCancel(true)}>
-            Stornieren
+            {t.cancel}
           </button>
         </div>
       )}
 
       {confirmCancel && (
-        <div className="order__confirm" role="alertdialog" aria-label="Stornierung bestätigen">
-          <p>Wirklich stornieren? Die Becher gehen zurück in den Bestand.</p>
+        <div className="order__confirm" role="alertdialog" aria-label={t.confirmCancelAria}>
+          <p>{t.confirmCancel}</p>
           {isPaid && (
             <p>
-              <strong>Achtung: Diese Bestellung ist bezahlt.</strong> Der Betrag wird nicht automatisch erstattet – bitte
-              danach im Stripe-Dashboard erstatten.
+              <strong>{t.paidWarningStrong}</strong> {t.paidWarning}
             </p>
           )}
           <div className="order__actions">
             <button type="button" className="btn btn--danger btn--small" disabled={busy} onClick={() => change('cancelado')}>
-              Ja, stornieren
+              {t.yesCancel}
             </button>
             <button type="button" className="btn btn--ghost btn--small" disabled={busy} onClick={() => setConfirmCancel(false)}>
-              Abbrechen
+              {t.abort}
             </button>
           </div>
         </div>

@@ -64,7 +64,7 @@ grant(backend.placeOrder, {
 grant(backend.staffOrders, { PickupPoint: 'read', Stock: 'readwrite', Order: 'readwrite', PfandBox: 'readwrite' });
 
 // order-status: visão pública de um pedido.
-grant(backend.orderStatus, { Order: 'read', PickupPoint: 'read' });
+grant(backend.orderStatus, { Order: 'read', PickupPoint: 'read', Flavor: 'read' });
 
 // stripe-webhook: marca como pago / cancela sessões expiradas.
 grant(backend.stripeWebhook, { PickupPoint: 'read', Stock: 'readwrite', Order: 'readwrite', PfandBox: 'readwrite' });

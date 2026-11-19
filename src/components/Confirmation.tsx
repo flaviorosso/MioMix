@@ -1,19 +1,19 @@
-import { formatCents, formatDeadline } from '../lib/format';
+import { useCustomerI18n } from '../i18n/customer';
 import type { PublicOrderStatus } from '../lib/amplify';
+import { formatCents, formatDeadline } from '../lib/format';
+import { pickupHoursText } from '../lib/hoursText';
 
 interface ConfirmationProps {
   order: PublicOrderStatus;
 }
 
-const STATUS_TEXT: Record<string, { title: string; text: string }> = {
-  pago: { title: 'Bezahlt', text: 'Wir bereiten deine Box vor.' },
-  pronto: { title: 'Abholbereit', text: 'Deine Box wartet auf dich.' },
-  retirado: { title: 'Abgeholt', text: 'Guten Appetit!' },
-};
-
 /** Confirmação de um pedido pago (status pago, pronto ou retirado). */
 export function Confirmation({ order }: ConfirmationProps) {
-  const status = STATUS_TEXT[order.status as string] ?? STATUS_TEXT.pago;
+  const { lang, t } = useCustomerI18n();
+  const c = t.confirm;
+  const money = (cents: number) => formatCents(cents, lang);
+  const status = c.statusText[order.status as string] ?? c.statusText.pago;
+  const hours = pickupHoursText(order.pickupPointWeeklyHours, order.pickupPointHours, lang);
 
   return (
     <section className="confirm" aria-labelledby="confirm-title">
@@ -21,44 +21,44 @@ export function Confirmation({ order }: ConfirmationProps) {
         ✓
       </div>
       <h1 id="confirm-title" className="confirm__title">
-        Danke, {order.customerFirstName}!
+        {c.thanks(order.customerFirstName)}
       </h1>
-      <p className="confirm__lead">Deine Bestellung ist bezahlt und für dich reserviert.</p>
+      <p className="confirm__lead">{c.lead}</p>
 
       <div className="card confirm__card">
-        <p className="label">Bestellnummer</p>
+        <p className="label">{c.orderNumber}</p>
         <p className="confirm__code">{order.orderCode}</p>
-        <p className="confirm__hint">Bitte nenne diese Nummer bei der Abholung.</p>
+        <p className="confirm__hint">{c.sayNumber}</p>
       </div>
 
       <dl className="card confirm__details">
         <div>
-          <dt>Status</dt>
+          <dt>{c.status}</dt>
           <dd>
             <strong>{status.title}</strong>
             <span>{status.text}</span>
           </dd>
         </div>
         <div>
-          <dt>Abholort</dt>
+          <dt>{c.pickupPoint}</dt>
           <dd>
             <strong>{order.pickupPointName}</strong>
-            {order.pickupPointHours && <span>{order.pickupPointHours}</span>}
+            {hours && <span>{hours}</span>}
           </dd>
         </div>
         {order.status !== 'retirado' && (
           <div>
-            <dt>Abholung bis</dt>
+            <dt>{c.pickupUntil}</dt>
             <dd>
-              <strong>{formatDeadline(order.pickupDeadline)}</strong>
-              <span>Deine Becher sind 24 Stunden ab Zahlung für dich reserviert.</span>
+              <strong>{formatDeadline(order.pickupDeadline, lang)}</strong>
+              <span>{c.pickupRule}</span>
             </dd>
           </div>
         )}
         <div>
-          <dt>Deine Box</dt>
+          <dt>{c.yourBox}</dt>
           <dd>
-            <strong>{order.boxSize} Becher</strong>
+            <strong>{t.box.cups(order.boxSize)}</strong>
             <ul className="confirm__items">
               {order.items.map((i) => (
                 <li key={i?.flavorId}>
@@ -69,21 +69,18 @@ export function Confirmation({ order }: ConfirmationProps) {
           </dd>
         </div>
         <div>
-          <dt>Bezahlt</dt>
+          <dt>{c.paid}</dt>
           <dd>
-            <strong>{formatCents(order.totalCents)}</strong>
-            <span>
-              Box {formatCents(order.priceCents)} +{' '}
-              {order.pfandCharged ? `Pfand ${formatCents(order.pfandCents)}` : 'kein Pfand'}
-            </span>
+            <strong>{money(order.totalCents)}</strong>
+            <span>{c.priceLine(money(order.priceCents), order.pfandCharged ? money(order.pfandCents) : null)}</span>
           </dd>
         </div>
       </dl>
 
-      <p className="confirm__hint">Tipp: Speichere diese Seite – hier siehst du jederzeit den Status deiner Bestellung.</p>
+      <p className="confirm__hint">{c.tip}</p>
 
       <a className="btn btn--ghost" href="/">
-        Neue Bestellung
+        {c.newOrder}
       </a>
     </section>
   );

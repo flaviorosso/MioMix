@@ -1,3 +1,5 @@
+import { localizeFlavor } from '../../shared/lang';
+import { useCustomerI18n } from '../i18n/customer';
 import type { FlavorView } from '../lib/types';
 import { Cup } from './Cup';
 
@@ -14,31 +16,31 @@ export function FlavorCard({ flavor, quantity, boxFull, onChange }: FlavorCardPr
   const atStockLimit = quantity >= flavor.stock;
   const canAdd = !atStockLimit && !boxFull;
   const remainingStock = flavor.stock - quantity;
+  const { lang, t } = useCustomerI18n();
+  const text = localizeFlavor(flavor, flavor.translations, lang);
 
   return (
     <article className={`flavor${quantity > 0 ? ' flavor--selected' : ''}`}>
       <Cup color={flavor.color} size={60} />
       <div className="flavor__body">
-        <h3 className="flavor__name">{flavor.name}</h3>
-        {flavor.description && <p className="flavor__desc">{flavor.description}</p>}
+        <h3 className="flavor__name">{text.name}</h3>
+        {text.description && <p className="flavor__desc">{text.description}</p>}
         <p className="flavor__allergens">
-          <span>Allergene:</span> {flavor.allergens.length ? flavor.allergens.join(', ') : 'keine'}
+          <span>{t.flavors.allergens}</span> {text.allergens.length ? text.allergens.join(', ') : t.flavors.noAllergens}
         </p>
         {atStockLimit ? (
-          <p className="flavor__stock flavor__stock--out">Mehr ist heute leider nicht da.</p>
+          <p className="flavor__stock flavor__stock--out">{t.flavors.noMore}</p>
         ) : (
-          flavor.stock <= LOW_STOCK && (
-            <p className="flavor__stock">Nur noch {remainingStock} verfügbar</p>
-          )
+          flavor.stock <= LOW_STOCK && <p className="flavor__stock">{t.flavors.onlyLeft(remainingStock)}</p>
         )}
       </div>
-      <div className="stepper" role="group" aria-label={`Anzahl ${flavor.name}`}>
+      <div className="stepper" role="group" aria-label={t.flavors.countAria(text.name)}>
         <button
           type="button"
           className="stepper__btn"
           onClick={() => onChange(-1)}
           disabled={quantity === 0}
-          aria-label={`${flavor.name} entfernen`}
+          aria-label={t.flavors.removeAria(text.name)}
         >
           −
         </button>
@@ -50,7 +52,7 @@ export function FlavorCard({ flavor, quantity, boxFull, onChange }: FlavorCardPr
           className="stepper__btn stepper__btn--add"
           onClick={() => onChange(1)}
           disabled={!canAdd}
-          aria-label={`${flavor.name} hinzufügen`}
+          aria-label={t.flavors.addAria(text.name)}
         >
           +
         </button>

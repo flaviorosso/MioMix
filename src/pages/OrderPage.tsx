@@ -5,7 +5,9 @@ import { FlavorCard } from '../components/FlavorCard';
 import { Footer } from '../components/Footer';
 import { client } from '../lib/amplify';
 import { fetchFlavors, fetchPickupPoints } from '../lib/data';
+import { useCustomerI18n, type CustomerMessages } from '../i18n/customer';
 import { formatCents } from '../lib/format';
+import { pickupHoursText } from '../lib/hoursText';
 import type { FlavorView, PickupPointView } from '../lib/types';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -22,17 +24,19 @@ interface CustomerForm {
 
 type FieldErrors = Partial<Record<'name' | 'email' | 'phone', string>>;
 
-function validate(form: CustomerForm): FieldErrors {
+function validate(form: CustomerForm, t: CustomerMessages): FieldErrors {
   const errors: FieldErrors = {};
-  if (form.name.trim().length < 2) errors.name = 'Bitte gib deinen Namen an.';
-  if (!EMAIL_RE.test(form.email.trim())) errors.email = 'Bitte gib eine gültige E-Mail-Adresse an.';
-  if (!PHONE_RE.test(form.phone.trim())) errors.phone = 'Bitte gib eine gültige Telefonnummer an.';
+  if (form.name.trim().length < 2) errors.name = t.form.errName;
+  if (!EMAIL_RE.test(form.email.trim())) errors.email = t.form.errEmail;
+  if (!PHONE_RE.test(form.phone.trim())) errors.phone = t.form.errPhone;
   return errors;
 }
 
 const pointFromUrl = () => new URLSearchParams(window.location.search).get('ponto')?.trim().toLowerCase() ?? '';
 
 export function OrderPage() {
+  const { lang, t } = useCustomerI18n();
+  const money = (cents: number) => formatCents(cents, lang);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [flavors, setFlavors] = useState<FlavorView[]>([]);
   const [points, setPoints] = useState<PickupPointView[]>([]);
@@ -108,24 +112,22 @@ export function OrderPage() {
     });
   };
 
+  const hoursOf = (p: PickupPointView) => pickupHoursText(p.weeklyHours, p.openingHours, lang);
+
   const scrollToForm = () => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   // --- Enviar --------------------------------------------------------------
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitError('');
-    const errors = validate(form);
+    const errors = validate(form, t);
     setFieldErrors(errors);
     if (!selectedPoint) {
-      setSubmitError('Bitte wähle oben deinen Abholort.');
+      setSubmitError(t.form.errPoint);
       return;
     }
     if (!boxComplete) {
-      setSubmitError(
-        tooMany
-          ? `Du hast ${-remaining} Becher zu viel gewählt.`
-          : `Bitte wähle noch ${remaining} Becher.`,
-      );
+      setSubmitError(tooMany ? t.form.errTooMany(-remaining) : t.form.errMissing(remaining));
       return;
     }
     if (Object.keys(errors).length) return;
@@ -144,11 +146,12 @@ export function OrderPage() {
         items: items.map(({ flavorId, quantity }) => ({ flavorId, quantity })),
         pfandBoxReturned: form.pfandReturned,
         returnOrigin: window.location.origin,
+        language: lang,
       });
       if (apiErrors?.length || !data) {
-        const message = apiErrors?.[0]?.message ?? 'Unbekannter Fehler.';
-        setSubmitError(message);
-        if (message.includes('Vorrat') || message.includes('nicht verfügbar')) await load();
+        setSubmitError(apiErrors?.[0]?.message ?? t.form.errUnknown);
+        // O erro pode ser "acabou o estoque": recarrega sabores e quantidades.
+        await load();
         setSubmitting(false);
         return;
       }
@@ -157,7 +160,7 @@ export function OrderPage() {
       return;
     } catch (err) {
       console.error(err);
-      setSubmitError('Verbindung fehlgeschlagen. Bitte versuche es noch einmal.');
+      setSubmitError(t.form.errConnection);
     }
     setSubmitting(false);
   };
@@ -167,19 +170,17 @@ export function OrderPage() {
     <div className="page page--with-bar">
       <header className="hero">
         <p className="hero__brand">Mio Mix</p>
-        <h1 className="hero__title">Deine Gelato-Box zum Mitnehmen</h1>
-        <p className="hero__lead">
-          Stell dir deine Lieblingssorten zusammen – wir füllen frisch ab, du holst sie bequem ab.
-        </p>
+        <h1 className="hero__title">{t.hero.title}</h1>
+        <p className="hero__lead">{t.hero.lead}</p>
       </header>
 
       <main className="main">
-        {loadState === 'loading' && <p className="status">Sorten werden geladen …</p>}
+        {loadState === 'loading' && <p className="status">{t.load.loading}</p>}
         {loadState === 'error' && (
           <div className="status status--error">
-            <p>Gerade können wir die Sorten nicht laden.</p>
+            <p>{t.load.error}</p>
             <button type="button" className="btn btn--ghost" onClick={() => void load()}>
-              Erneut versuchen
+              {t.load.retry}
             </button>
           </div>
         )}
@@ -189,20 +190,20 @@ export function OrderPage() {
             {/* 1. Abholort */}
             <section className="section" aria-labelledby="sec-point">
               <h2 id="sec-point" className="section__title">
-                <span className="section__num">1</span> Wo holst du ab?
+                <span className="section__num">1</span> {t.point.title}
               </h2>
               {!choosingPoint && selectedPoint ? (
                 <div className="card point point--selected">
                   <div>
                     <p className="point__name">{selectedPoint.name}</p>
-                    {selectedPoint.openingHours && <p className="point__meta">{selectedPoint.openingHours}</p>}
+                    {hoursOf(selectedPoint) && <p className="point__meta">{hoursOf(selectedPoint)}</p>}
                   </div>
                   <button type="button" className="link-btn" onClick={() => setChoosingPoint(true)}>
-                    ändern
+                    {t.point.change}
                   </button>
                 </div>
               ) : (
-                <div className="choices" role="radiogroup" aria-label="Abholort">
+                <div className="choices" role="radiogroup" aria-label={t.point.aria}>
                   {points.map((p) => (
                     <button
                       key={p.code}
@@ -216,7 +217,7 @@ export function OrderPage() {
                       }}
                     >
                       <span className="point__name">{p.name}</span>
-                      {p.openingHours && <span className="point__meta">{p.openingHours}</span>}
+                      {hoursOf(p) && <span className="point__meta">{hoursOf(p)}</span>}
                     </button>
                   ))}
                 </div>
@@ -226,9 +227,9 @@ export function OrderPage() {
             {/* 2. Box */}
             <section className="section" aria-labelledby="sec-box">
               <h2 id="sec-box" className="section__title">
-                <span className="section__num">2</span> Wähle deine Box
+                <span className="section__num">2</span> {t.box.title}
               </h2>
-              <div className="boxes" role="radiogroup" aria-label="Boxgröße">
+              <div className="boxes" role="radiogroup" aria-label={t.box.aria}>
                 {BOX_SIZES.map((size) => (
                   <button
                     key={size}
@@ -243,22 +244,22 @@ export function OrderPage() {
                         <i key={i} />
                       ))}
                     </span>
-                    <span className="box__size">{size} Becher</span>
-                    <span className="box__grams">à {CUP_GRAMS} g</span>
-                    <span className="box__price">{formatCents(PRICES_CENTS[size])}</span>
+                    <span className="box__size">{t.box.cups(size)}</span>
+                    <span className="box__grams">{t.box.grams(CUP_GRAMS)}</span>
+                    <span className="box__price">{money(PRICES_CENTS[size])}</span>
                   </button>
                 ))}
               </div>
-              <p className="section__note">zzgl. {formatCents(PFAND_CENTS)} Pfand für die wiederverwendbare Box</p>
+              <p className="section__note">{t.box.pfandNote(money(PFAND_CENTS))}</p>
             </section>
 
             {/* 3. Sorten */}
             <section className="section" aria-labelledby="sec-flavors">
               <h2 id="sec-flavors" className="section__title">
-                <span className="section__num">3</span> Wähle deine Sorten
+                <span className="section__num">3</span> {t.flavors.title}
               </h2>
               {flavors.length === 0 ? (
-                <p className="status">Heute sind leider alle Sorten ausverkauft. Schau morgen wieder vorbei!</p>
+                <p className="status">{t.flavors.soldOutAll}</p>
               ) : (
                 <div className="flavors">
                   {flavors.map((f) => (
@@ -277,11 +278,11 @@ export function OrderPage() {
             {/* 4. Daten */}
             <section className="section" aria-labelledby="sec-data" ref={formRef}>
               <h2 id="sec-data" className="section__title">
-                <span className="section__num">4</span> Deine Daten
+                <span className="section__num">4</span> {t.form.title}
               </h2>
               <form className="card form" onSubmit={handleSubmit} noValidate>
                 <label className="field">
-                  <span>Name</span>
+                  <span>{t.form.name}</span>
                   <input
                     type="text"
                     autoComplete="name"
@@ -292,7 +293,7 @@ export function OrderPage() {
                   {fieldErrors.name && <small className="field__error">{fieldErrors.name}</small>}
                 </label>
                 <label className="field">
-                  <span>E-Mail</span>
+                  <span>{t.form.email}</span>
                   <input
                     type="email"
                     autoComplete="email"
@@ -304,7 +305,7 @@ export function OrderPage() {
                   {fieldErrors.email && <small className="field__error">{fieldErrors.email}</small>}
                 </label>
                 <label className="field">
-                  <span>Telefon</span>
+                  <span>{t.form.phone}</span>
                   <input
                     type="tel"
                     autoComplete="tel"
@@ -324,23 +325,23 @@ export function OrderPage() {
                     onChange={(e) => setForm({ ...form, pfandReturned: e.target.checked })}
                   />
                   <span>
-                    Ich habe eine Pfand-Box zurückgebracht
-                    <small>Dann zahlst du kein Pfand. Wir prüfen die Rückgabe bei der Abholung.</small>
+                    {t.form.pfandReturned}
+                    <small>{t.form.pfandReturnedHint}</small>
                   </span>
                 </label>
 
                 <div className="summary">
                   <div className="summary__row">
-                    <span>Box mit {boxSize} Bechern</span>
-                    <span>{formatCents(priceCents)}</span>
+                    <span>{t.form.boxLine(boxSize)}</span>
+                    <span>{money(priceCents)}</span>
                   </div>
                   <div className="summary__row">
-                    <span>Pfand</span>
-                    <span>{form.pfandReturned ? '–' : formatCents(pfandCents)}</span>
+                    <span>{t.form.pfand}</span>
+                    <span>{form.pfandReturned ? '–' : money(pfandCents)}</span>
                   </div>
                   <div className="summary__row summary__row--total">
-                    <span>Gesamt</span>
-                    <span>{formatCents(totalCents)}</span>
+                    <span>{t.form.total}</span>
+                    <span>{money(totalCents)}</span>
                   </div>
                 </div>
 
@@ -351,12 +352,10 @@ export function OrderPage() {
                 )}
 
                 <button type="submit" className="btn btn--primary btn--block" disabled={submitting}>
-                  {submitting ? 'Weiterleitung zur Zahlung …' : 'Weiter zur Zahlung'}
+                  {submitting ? t.form.submitting : t.form.submit}
                 </button>
                 <p className="form__privacy">
-                  Du bezahlst sicher über unseren Zahlungsanbieter Stripe. Wir verwenden deine Daten nur für die
-                  Abwicklung deiner Bestellung. Mehr dazu in der{' '}
-                  <a href="/datenschutz">Datenschutzerklärung</a>.
+                  {t.form.privacyBefore} <a href="/datenschutz">{t.form.privacyLink}</a>.
                 </p>
               </form>
             </section>
@@ -374,10 +373,10 @@ export function OrderPage() {
             <div className="bar__text">
               <p className="bar__label" aria-live="polite">
                 {tooMany
-                  ? `${-remaining} Becher zu viel`
+                  ? t.bar.tooMany(-remaining)
                   : boxComplete
-                    ? 'Deine Box ist komplett!'
-                    : `noch ${remaining} von ${boxSize} Bechern`}
+                    ? t.bar.complete
+                    : t.bar.remaining(remaining, boxSize)}
               </p>
               <div
                 className="bar__track"
@@ -395,7 +394,7 @@ export function OrderPage() {
               disabled={!boxComplete}
               onClick={scrollToForm}
             >
-              Weiter
+              {t.bar.next}
             </button>
           </div>
         </div>

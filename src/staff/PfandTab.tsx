@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { PFAND_CENTS } from '../../shared/pricing';
 import { formatCents } from '../lib/format';
+import { useStaffI18n } from '../i18n/staff';
 import { errorMessage, staffClient, type PfandBox } from './client';
 
 export function PfandTab() {
+  const { lang, t: tt } = useStaffI18n();
+  const t = tt.pfand;
+  const money = (cents: number) => formatCents(cents, lang);
   const [boxes, setBoxes] = useState<PfandBox[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -43,21 +47,25 @@ export function PfandTab() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await staffClient.mutations.registerPfandReturn({ customerEmail: selected.customerEmail, boxes: n });
+      const res = await staffClient.mutations.registerPfandReturn({
+        customerEmail: selected.customerEmail,
+        boxes: n,
+        language: lang,
+      });
       if (res.errors?.length || !res.data) {
-        setMessage({ type: 'error', text: errorMessage(res.errors) });
+        setMessage({ type: 'error', text: errorMessage(res.errors, tt.unknownError) });
         return;
       }
       setMessage({
         type: 'ok',
-        text: `${n} Box(en) zurückgenommen. Neues Guthaben: ${formatCents(res.data.creditCents)} – wird bei der nächsten Bestellung verrechnet.`,
+        text: t.done(n, money(res.data.creditCents)),
       });
       setCount('1');
       const all = await load();
       setSelected(all.find((b) => b.customerEmail === selected.customerEmail) ?? null);
     } catch (err) {
       console.error(err);
-      setMessage({ type: 'error', text: 'Speichern fehlgeschlagen.' });
+      setMessage({ type: 'error', text: tt.saveFailed });
     } finally {
       setSaving(false);
     }
@@ -66,15 +74,12 @@ export function PfandTab() {
   return (
     <section>
       <div className="staff-intro">
-        <h2>Pfand-Boxen</h2>
-        <p className="staff-hint">
-          Box ohne Bestellung zurückgebracht? Kunde suchen und Rückgabe eintragen – pro Box {formatCents(PFAND_CENTS)}{' '}
-          Guthaben für die nächste Bestellung.
-        </p>
+        <h2>{t.title}</h2>
+        <p className="staff-hint">{t.hint(money(PFAND_CENTS))}</p>
       </div>
 
       <label className="field">
-        <span>E-Mail suchen</span>
+        <span>{t.search}</span>
         <input
           type="search"
           inputMode="email"
@@ -88,12 +93,12 @@ export function PfandTab() {
         />
       </label>
 
-      {loading && <p className="status">Wird geladen …</p>}
+      {loading && <p className="status">{tt.loading}</p>}
 
       {!loading && (
         <div className="pfand-list">
-          {!q && <p className="staff-hint">Kunden mit Boxen in Benutzung:</p>}
-          {filtered.length === 0 && <p className="status">{q ? 'Keine Treffer.' : 'Keine Boxen in Benutzung.'}</p>}
+          {!q && <p className="staff-hint">{t.inUseList}</p>}
+          {filtered.length === 0 && <p className="status">{q ? t.noHits : t.noneInUse}</p>}
           {filtered.map((b) => (
             <button
               key={b.customerEmail}
@@ -106,7 +111,7 @@ export function PfandTab() {
             >
               <span className="pfand-row__email">{b.customerEmail}</span>
               <span className="pfand-row__stats">
-                {b.boxesInUse} in Benutzung · {b.boxesReturned} zurück · Guthaben {formatCents(b.creditCents)}
+                {t.stats(b.boxesInUse, b.boxesReturned, money(b.creditCents))}
               </span>
             </button>
           ))}
@@ -115,9 +120,9 @@ export function PfandTab() {
 
       {selected && (
         <form className="card form" onSubmit={submit}>
-          <h3>Rückgabe für {selected.customerEmail}</h3>
+          <h3>{t.returnFor(selected.customerEmail)}</h3>
           <label className="field">
-            <span>Anzahl zurückgebrachter Boxen</span>
+            <span>{t.count}</span>
             <input
               inputMode="numeric"
               value={count}
@@ -129,9 +134,9 @@ export function PfandTab() {
             className="btn btn--primary btn--small"
             disabled={saving || !(parseInt(count, 10) >= 1) || selected.boxesInUse < 1}
           >
-            {saving ? 'Wird gespeichert …' : 'Rückgabe eintragen'}
+            {saving ? tt.saving : t.submit}
           </button>
-          {selected.boxesInUse < 1 && <p className="staff-hint">Dieser Kunde hat keine Box in Benutzung.</p>}
+          {selected.boxesInUse < 1 && <p className="staff-hint">{t.noBox}</p>}
         </form>
       )}
 

@@ -9,14 +9,6 @@ export type OrderStatus = 'aguardando_pagamento' | 'pago' | 'pronto' | 'retirado
 export type Order = Schema['Order']['type'];
 export type PfandBox = Schema['PfandBox']['type'];
 
-export const STATUS_LABEL: Record<OrderStatus, string> = {
-  aguardando_pagamento: 'Zahlung offen',
-  pago: 'Bezahlt',
-  pronto: 'Abholbereit',
-  retirado: 'Abgeholt',
-  cancelado: 'Storniert',
-};
-
 /** Data de hoje (Europe/Berlin) no formato YYYY-MM-DD. */
 export const todayBerlin = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date());
@@ -28,5 +20,5 @@ export const formatDate = (isoDate: string) => {
 };
 
 /** Primeira mensagem de erro de uma resposta da API (ou exceção). */
-export const errorMessage = (errors?: readonly { message: string }[] | null, fallback = 'Unbekannter Fehler.') =>
+export const errorMessage = (errors?: readonly { message: string }[] | null, fallback = '–') =>
   errors?.[0]?.message ?? fallback;

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   WEEKDAYS_DE_LONG,
+  WEEKDAYS_PT_LONG,
   formatWeeklyHours,
   parseWeeklyHours,
   validateWeeklyHours,
   type OpeningDay,
 } from '../../shared/hours';
+import { useStaffI18n } from '../i18n/staff';
 import { errorMessage, staffClient } from './client';
 
 /** Um dia no formulário (inclui os fechados, para poder reabrir). */
@@ -32,6 +34,8 @@ const toHours = (days: DayDraft[]): OpeningDay[] =>
   days.flatMap((d, day) => (d.open ? [{ day, open: d.from, close: d.to }] : []));
 
 export function PickupPointsTab() {
+  const { t: tt } = useStaffI18n();
+  const t = tt.points;
   const [points, setPoints] = useState<PointRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -53,11 +57,11 @@ export function PickupPointsTab() {
       setLoadError('');
     } catch (err) {
       console.error(err);
-      setLoadError('Abholorte konnten nicht geladen werden.');
+      setLoadError(t.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -66,13 +70,10 @@ export function PickupPointsTab() {
   return (
     <section>
       <div className="staff-intro">
-        <h2>Abholorte</h2>
-        <p className="staff-hint">
-          Öffnungszeiten je Wochentag. Fällt das Abholende (24 h nach Zahlung) in eine geschlossene Zeit, gilt die
-          Bestellung bis zum Ladenschluss des nächsten Öffnungstags.
-        </p>
+        <h2>{t.title}</h2>
+        <p className="staff-hint">{t.hint}</p>
       </div>
-      {loading && <p className="status">Wird geladen …</p>}
+      {loading && <p className="status">{tt.loading}</p>}
       {loadError && <p className="form__error">{loadError}</p>}
       <div className="point-list">
         {points.map((p) => (
@@ -84,6 +85,9 @@ export function PickupPointsTab() {
 }
 
 function PointCard({ point, onSaved }: { point: PointRow; onSaved: () => Promise<void> }) {
+  const { lang, t: tt } = useStaffI18n();
+  const t = tt.points;
+  const dayNames = lang === 'pt' ? WEEKDAYS_PT_LONG : WEEKDAYS_DE_LONG;
   const [days, setDays] = useState<DayDraft[]>(point.days);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -97,7 +101,7 @@ function PointCard({ point, onSaved }: { point: PointRow; onSaved: () => Promise
   };
 
   const hours = toHours(days);
-  const preview = formatWeeklyHours(hours) || 'Geschlossen';
+  const preview = formatWeeklyHours(hours, lang) || t.closedAll;
 
   const save = async () => {
     const invalid = validateWeeklyHours(hours);
@@ -117,11 +121,11 @@ function PointCard({ point, onSaved }: { point: PointRow; onSaved: () => Promise
         setError(errorMessage(res.errors));
         return;
       }
-      setOk('Gespeichert.');
+      setOk(t.saved);
       await onSaved();
     } catch (err) {
       console.error(err);
-      setError('Verbindung fehlgeschlagen.');
+      setError(tt.connectionFailed);
     } finally {
       setBusy(false);
     }
@@ -139,38 +143,38 @@ function PointCard({ point, onSaved }: { point: PointRow; onSaved: () => Promise
           <div key={i} className={`hours-row${d.open ? '' : ' is-closed'}`}>
             <label className="switch hours-row__day">
               <input type="checkbox" checked={d.open} onChange={(e) => setDay(i, { open: e.target.checked })} />
-              {WEEKDAYS_DE_LONG[i]}
+              {dayNames[i]}
             </label>
             {d.open ? (
               <span className="hours-row__times">
                 <input
                   type="time"
                   value={d.from}
-                  aria-label={`${WEEKDAYS_DE_LONG[i]} öffnet`}
+                  aria-label={t.opens(dayNames[i])}
                   onChange={(e) => setDay(i, { from: e.target.value })}
                 />
                 <span>–</span>
                 <input
                   type="time"
                   value={d.to}
-                  aria-label={`${WEEKDAYS_DE_LONG[i]} schließt`}
+                  aria-label={t.closes(dayNames[i])}
                   onChange={(e) => setDay(i, { to: e.target.value })}
                 />
               </span>
             ) : (
-              <span className="staff-hint">geschlossen</span>
+              <span className="staff-hint">{t.closed}</span>
             )}
           </div>
         ))}
       </div>
 
       <p className="staff-hint">
-        Anzeige für Kunden: <strong>{preview}</strong>
+        {t.preview} <strong>{preview}</strong>
       </p>
       {error && <p className="form__error">{error}</p>}
       {ok && <p className="form__ok">{ok}</p>}
       <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void save()}>
-        {busy ? 'Wird gespeichert …' : 'Öffnungszeiten speichern'}
+        {busy ? tt.saving : t.saveButton}
       </button>
     </article>
   );

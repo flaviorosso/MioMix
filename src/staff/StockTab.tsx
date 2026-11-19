@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Cup } from '../components/Cup';
+import { useStaffI18n } from '../i18n/staff';
 import { errorMessage, formatDate, staffClient, todayBerlin } from './client';
 
 interface Row {
@@ -14,6 +15,8 @@ interface Row {
 }
 
 export function StockTab() {
+  const { t: tt } = useStaffI18n();
+  const t = tt.stock;
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,28 +87,28 @@ export function StockTab() {
       if (failed) {
         setMessage({ type: 'error', text: errorMessage(failed.errors) });
       } else {
-        setMessage({ type: 'ok', text: `Bestand für heute (${formatDate(today)}) gespeichert.` });
+        setMessage({ type: 'ok', text: t.saved(formatDate(today)) });
       }
       await load();
     } catch (err) {
       console.error(err);
-      setMessage({ type: 'error', text: 'Speichern fehlgeschlagen.' });
+      setMessage({ type: 'error', text: tt.saveFailed });
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading && rows.length === 0) return <p className="status">Wird geladen …</p>;
+  if (loading && rows.length === 0) return <p className="status">{tt.loading}</p>;
 
   const outdated = rows.filter((r) => r.active && r.stockDate !== today).length;
 
   return (
     <section>
       <div className="staff-intro">
-        <h2>Bestand heute</h2>
+        <h2>{t.title}</h2>
         <p className="staff-hint">
-          Anzahl der verfügbaren Becher pro Sorte. Jeden Morgen eintragen und speichern.
-          {outdated > 0 && <strong> {outdated} Sorte(n) noch nicht für heute bestätigt.</strong>}
+          {t.hint}
+          {outdated > 0 && <strong>{t.outdated(outdated)}</strong>}
         </p>
       </div>
 
@@ -119,11 +122,11 @@ export function StockTab() {
               <div className="stock-row__info">
                 <p className="stock-row__name">
                   {r.name}
-                  {!r.active && <span className="badge">inaktiv</span>}
+                  {!r.active && <span className="badge">{t.inactive}</span>}
                 </p>
                 <p className={`staff-hint${r.stockDate === today ? '' : ' staff-hint--warn'}`}>
-                  {r.stockDate ? `Stand ${formatDate(r.stockDate)}` : 'Noch kein Bestand'}
-                  {dirty && ' · geändert'}
+                  {r.stockDate ? t.asOf(formatDate(r.stockDate)) : t.noStock}
+                  {dirty && t.changed}
                 </p>
               </div>
               <div className="stepper">
@@ -132,7 +135,7 @@ export function StockTab() {
                   className="stepper__btn"
                   onClick={() => step(r.flavorId, -1)}
                   disabled={!(qty > 0)}
-                  aria-label={`${r.name} minus 1`}
+                  aria-label={t.minus(r.name)}
                 >
                   −
                 </button>
@@ -142,13 +145,13 @@ export function StockTab() {
                   pattern="[0-9]*"
                   value={r.input}
                   onChange={(e) => setInput(r.flavorId, e.target.value.replace(/[^0-9]/g, ''))}
-                  aria-label={`Bestand ${r.name}`}
+                  aria-label={t.inputAria(r.name)}
                 />
                 <button
                   type="button"
                   className="stepper__btn stepper__btn--add"
                   onClick={() => step(r.flavorId, 1)}
-                  aria-label={`${r.name} plus 1`}
+                  aria-label={t.plus(r.name)}
                 >
                   +
                 </button>
@@ -166,7 +169,7 @@ export function StockTab() {
 
       <div className="staff-sticky-action">
         <button type="button" className="btn btn--primary btn--block" disabled={saving || invalid} onClick={save}>
-          {saving ? 'Wird gespeichert …' : 'Bestand für heute speichern'}
+          {saving ? tt.saving : t.saveButton}
         </button>
       </div>
     </section>

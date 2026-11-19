@@ -31,13 +31,55 @@ const TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   cancelado: [],
 };
 
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  aguardando_pagamento: 'Zahlung offen',
-  pago: 'Bezahlt',
-  pronto: 'Abholbereit',
-  retirado: 'Abgeholt',
-  cancelado: 'Storniert',
+/** Idiomas do painel staff. */
+type StaffLang = 'de' | 'pt';
+const staffLang = (v: unknown): StaffLang => (v === 'pt' ? 'pt' : 'de');
+
+const STATUS_LABEL: Record<StaffLang, Record<OrderStatus, string>> = {
+  de: {
+    aguardando_pagamento: 'Zahlung offen',
+    pago: 'Bezahlt',
+    pronto: 'Abholbereit',
+    retirado: 'Abgeholt',
+    cancelado: 'Storniert',
+  },
+  pt: {
+    aguardando_pagamento: 'Pagamento pendente',
+    pago: 'Pago',
+    pronto: 'Pronto para retirada',
+    retirado: 'Retirado',
+    cancelado: 'Cancelado',
+  },
 };
+
+const MSG = {
+  notFound: { de: 'Bestellung nicht gefunden.', pt: 'Pedido não encontrado.' },
+  transition: {
+    de: (a: string, b: string) => `Statuswechsel von „${a}“ nach „${b}“ ist nicht möglich.`,
+    pt: (a: string, b: string) => `Não é possível mudar o status de “${a}” para “${b}”.`,
+  },
+  pfandAnswer: {
+    de: 'Bitte angeben, ob die Pfand-Box zurückgegeben wurde.',
+    pt: 'Informe se a box (Pfand) foi devolvida.',
+  },
+  orderChanged: {
+    de: 'Die Bestellung wurde gerade geändert. Bitte neu laden und erneut versuchen.',
+    pt: 'O pedido acabou de ser alterado. Recarregue e tente de novo.',
+  },
+  boxCount: { de: 'Bitte eine Anzahl zwischen 1 und 20 angeben.', pt: 'Informe uma quantidade entre 1 e 20.' },
+  noBoxes: {
+    de: 'Für diese E-Mail-Adresse sind keine Pfand-Boxen registriert.',
+    pt: 'Não há boxes (Pfand) registradas para este e-mail.',
+  },
+  onlyInUse: {
+    de: (n: number) => `Diese Kundin / dieser Kunde hat nur ${n} Box(en) in Benutzung.`,
+    pt: (n: number) => `Este cliente tem apenas ${n} box(es) em uso.`,
+  },
+  dataChanged: {
+    de: 'Die Daten wurden gerade geändert. Bitte erneut versuchen.',
+    pt: 'Os dados acabaram de ser alterados. Tente de novo.',
+  },
+} satisfies Record<string, Record<StaffLang, unknown>>;
 
 class StaffError extends Error {}
 
@@ -57,16 +99,15 @@ async function updateOrderStatus(
   event: AppSyncResolverEvent<unknown>,
 ): Promise<UpdateResult> {
   const next = args.status as OrderStatus;
+  const lang = staffLang(args.language);
   const { Item: order } = await ddb.send(
     new GetCommand({ TableName: env.orderTable, Key: { id: args.orderId } }),
   );
-  if (!order) throw new StaffError('Bestellung nicht gefunden.');
+  if (!order) throw new StaffError(MSG.notFound[lang]);
 
   const current = order.status as OrderStatus;
   if (!TRANSITIONS[current]?.includes(next)) {
-    throw new StaffError(
-      `Statuswechsel von „${STATUS_LABEL[current]}“ nach „${STATUS_LABEL[next]}“ ist nicht möglich.`,
-    );
+    throw new StaffError(MSG.transition[lang](STATUS_LABEL[lang][current], STATUS_LABEL[lang][next]));
   }
 
   const now = new Date().toISOString();
@@ -93,7 +134,7 @@ async function updateOrderStatus(
   // --- Retirada com Pfand-Rückgabe declarada: staff confirma a caixa ----------
   if (next === 'retirado' && declared) {
     if (typeof args.pfandBoxReceived !== 'boolean') {
-      throw new StaffError('Bitte angeben, ob die Pfand-Box zurückgegeben wurde.');
+      throw new StaffError(MSG.pfandAnswer[lang]);
     }
     extraSets.pfandBoxReceived = args.pfandBoxReceived;
     extraSets.pfandCollectedOnSite = !args.pfandBoxReceived;
@@ -140,7 +181,7 @@ async function updateOrderStatus(
   } catch (err) {
     if (err instanceof TransactionCanceledException) {
       console.warn('updateOrderStatus conflict', err.CancellationReasons);
-      throw new StaffError('Die Bestellung wurde gerade geändert. Bitte neu laden und erneut versuchen.');
+      throw new StaffError(MSG.orderChanged[lang]);
     }
     throw err;
   }
@@ -157,17 +198,18 @@ type ReturnResult = Schema['registerPfandReturn']['returnType'];
 async function registerPfandReturn(args: ReturnArgs): Promise<ReturnResult> {
   const email = args.customerEmail.trim().toLowerCase();
   const boxes = args.boxes;
+  const lang = staffLang(args.language);
   if (!Number.isInteger(boxes) || boxes < 1 || boxes > 20) {
-    throw new StaffError('Bitte eine Anzahl zwischen 1 und 20 angeben.');
+    throw new StaffError(MSG.boxCount[lang]);
   }
 
   const { Item: box } = await ddb.send(
     new GetCommand({ TableName: env.pfandBoxTable, Key: { customerEmail: email } }),
   );
-  if (!box) throw new StaffError('Für diese E-Mail-Adresse sind keine Pfand-Boxen registriert.');
+  if (!box) throw new StaffError(MSG.noBoxes[lang]);
   const inUse = (box.boxesInUse as number) ?? 0;
   if (boxes > inUse) {
-    throw new StaffError(`Diese Kundin / dieser Kunde hat nur ${inUse} Box(en) in Benutzung.`);
+    throw new StaffError(MSG.onlyInUse[lang](inUse));
   }
 
   try {
@@ -198,7 +240,7 @@ async function registerPfandReturn(args: ReturnArgs): Promise<ReturnResult> {
     };
   } catch (err) {
     if ((err as { name?: string }).name === 'ConditionalCheckFailedException') {
-      throw new StaffError('Die Daten wurden gerade geändert. Bitte erneut versuchen.');
+      throw new StaffError(MSG.dataChanged[lang]);
     }
     throw err;
   }

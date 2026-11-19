@@ -3,6 +3,7 @@ export interface FlavorView {
   name: string;
   description: string;
   allergens: string[];
+  translations: unknown; // traduções PT/EN (ver shared/lang.ts)
   color: string;
   stock: number;
 }
@@ -12,4 +13,5 @@ export interface PickupPointView {
   name: string;
   address: string;
   openingHours: string;
+  weeklyHours: unknown; // horário estruturado (ver shared/hours.ts)
 }

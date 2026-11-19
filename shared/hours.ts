@@ -8,6 +8,16 @@ export const TIME_ZONE = 'Europe/Berlin';
 /** Dias da semana: 0 = segunda … 6 = domingo. */
 export const WEEKDAYS_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const;
 export const WEEKDAYS_DE_LONG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'] as const;
+export const WEEKDAYS_PT_LONG = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'] as const;
+
+/** Abreviações e "todos os dias" por idioma, para o texto do horário. */
+const SHORT_DAYS = {
+  de: WEEKDAYS_DE,
+  pt: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+} as const;
+const DAILY = { de: 'Täglich', pt: 'Todos os dias', en: 'Daily' } as const;
+type HoursLang = keyof typeof SHORT_DAYS;
 
 /** Um dia aberto. Dias que não aparecem na lista estão fechados. */
 export interface OpeningDay {
@@ -51,10 +61,11 @@ export function validateWeeklyHours(days: OpeningDay[]): string | null {
 }
 
 /** Texto curto para o cliente, agrupando dias seguidos com o mesmo horário: "Mi–Mo 16:00–22:00". */
-export function formatWeeklyHours(days: OpeningDay[]): string {
+export function formatWeeklyHours(days: OpeningDay[], lang: HoursLang = 'de'): string {
   if (days.length === 0) return '';
+  const names = SHORT_DAYS[lang];
   const byDay = new Map(days.map((d) => [d.day, `${d.open}–${d.close}`]));
-  if (byDay.size === 7 && new Set(byDay.values()).size === 1) return `Täglich ${days[0].open}–${days[0].close}`;
+  if (byDay.size === 7 && new Set(byDay.values()).size === 1) return `${DAILY[lang]} ${days[0].open}–${days[0].close}`;
 
   // Começa a contagem logo depois de um dia fechado, para "Mi–Mo" sair inteiro (atravessando o domingo).
   let start = 0;
@@ -75,7 +86,7 @@ export function formatWeeklyHours(days: OpeningDay[]): string {
   }
   return groups
     .map((g) => {
-      const span = g.from === g.to ? WEEKDAYS_DE[g.from] : `${WEEKDAYS_DE[g.from]}–${WEEKDAYS_DE[g.to]}`;
+      const span = g.from === g.to ? names[g.from] : `${names[g.from]}–${names[g.to]}`;
       return `${span} ${g.time}`;
     })
     .join(', ');

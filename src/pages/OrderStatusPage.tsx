@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Confirmation } from '../components/Confirmation';
 import { Footer } from '../components/Footer';
+import type { Lang } from '../../shared/lang';
+import { useCustomerI18n, type CustomerMessages } from '../i18n/customer';
 import { client, type PublicOrderStatus } from '../lib/amplify';
 import { formatCents } from '../lib/format';
 
@@ -21,6 +23,7 @@ const minutesLeft = (iso?: string | null) =>
   iso ? Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 60000)) : 0;
 
 export function OrderStatusPage() {
+  const { lang, t } = useCustomerI18n();
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [pollsLeft, setPollsLeft] = useState(CANCELLED_AT_STRIPE ? 0 : POLL_MAX);
   const timer = useRef<number | undefined>(undefined);
@@ -31,7 +34,7 @@ export function OrderStatusPage() {
       return null;
     }
     try {
-      const { data, errors } = await client.queries.getOrderStatus({ orderId: ORDER_ID });
+      const { data, errors } = await client.queries.getOrderStatus({ orderId: ORDER_ID, language: lang });
       if (errors?.length) throw new Error(errors[0].message);
       if (!data) {
         setView({ kind: 'notFound' });
@@ -44,7 +47,7 @@ export function OrderStatusPage() {
       setView({ kind: 'error' });
       return null;
     }
-  }, []);
+  }, [lang]);
 
   // Carrega e, se ainda aguardando pagamento (voltando do Stripe), consulta de novo por alguns segundos.
   useEffect(() => {
@@ -68,21 +71,22 @@ export function OrderStatusPage() {
 
   return (
     <div className="page">
-      <main className="main">{renderView(view, pollsLeft, () => void load())}</main>
+      <main className="main">{renderView(view, pollsLeft, () => void load(), t, lang)}</main>
       <Footer />
     </div>
   );
 }
 
-function renderView(view: View, pollsLeft: number, reload: () => void) {
-  if (view.kind === 'loading') return <p className="status">Bestellung wird geladen …</p>;
+function renderView(view: View, pollsLeft: number, reload: () => void, t: CustomerMessages, lang: Lang) {
+  const s = t.status;
+  if (view.kind === 'loading') return <p className="status">{s.loading}</p>;
 
   if (view.kind === 'notFound') {
     return (
-      <Notice title="Bestellung nicht gefunden">
-        <p>Bitte prüfe den Link oder bestelle neu.</p>
+      <Notice title={s.notFoundTitle}>
+        <p>{s.notFoundText}</p>
         <a className="btn btn--primary" href="/">
-          Zur Bestellung
+          {s.toOrder}
         </a>
       </Notice>
     );
@@ -90,10 +94,10 @@ function renderView(view: View, pollsLeft: number, reload: () => void) {
 
   if (view.kind === 'error') {
     return (
-      <Notice title="Gerade nicht erreichbar">
-        <p>Wir können den Status deiner Bestellung im Moment nicht laden.</p>
+      <Notice title={s.errorTitle}>
+        <p>{s.errorText}</p>
         <button type="button" className="btn btn--ghost" onClick={reload}>
-          Erneut versuchen
+          {s.retry}
         </button>
       </Notice>
     );
@@ -103,13 +107,10 @@ function renderView(view: View, pollsLeft: number, reload: () => void) {
 
   if (order.status === 'cancelado') {
     return (
-      <Notice title="Bestellung storniert">
-        <p>
-          Die Bestellung <strong>{order.orderCode}</strong> wurde storniert
-          {order.paid ? '.' : ' – es wurde nichts abgebucht.'}
-        </p>
+      <Notice title={s.cancelledTitle}>
+        <p>{s.cancelledText(order.orderCode, order.paid)}</p>
         <a className="btn btn--primary" href="/">
-          Neue Bestellung
+          {s.newOrder}
         </a>
       </Notice>
     );
@@ -119,30 +120,27 @@ function renderView(view: View, pollsLeft: number, reload: () => void) {
     // Voltou do Stripe com sucesso, mas o aviso ainda não chegou.
     if (pollsLeft > 0 && !CANCELLED_AT_STRIPE) {
       return (
-        <Notice title="Zahlung wird bestätigt …">
-          <p>Einen Moment bitte, wir warten auf die Bestätigung deiner Zahlung.</p>
+        <Notice title={s.confirmingTitle}>
+          <p>{s.confirmingText}</p>
         </Notice>
       );
     }
     return (
-      <Notice title={CANCELLED_AT_STRIPE ? 'Zahlung abgebrochen' : 'Zahlung noch offen'}>
-        <p>
-          Deine Bestellung <strong>{order.orderCode}</strong> über {formatCents(order.totalCents)} ist noch nicht
-          bezahlt.
-        </p>
+      <Notice title={CANCELLED_AT_STRIPE ? s.abortedTitle : s.openTitle}>
+        <p>{s.unpaidText(order.orderCode, formatCents(order.totalCents, lang))}</p>
         {order.checkoutUrl ? (
           <>
-            <p>Wir halten deine Becher noch etwa {minutesLeft(order.checkoutExpiresAt)} Minuten für dich bereit.</p>
+            <p>{s.holdText(minutesLeft(order.checkoutExpiresAt))}</p>
             <a className="btn btn--primary" href={order.checkoutUrl}>
-              Jetzt bezahlen
+              {s.payNow}
             </a>
           </>
         ) : (
-          <p>Die Reservierung ist abgelaufen. Bitte bestelle neu.</p>
+          <p>{s.expired}</p>
         )}
         {!CANCELLED_AT_STRIPE && (
           <button type="button" className="link-btn" onClick={reload}>
-            Status aktualisieren
+            {s.refresh}
           </button>
         )}
       </Notice>
