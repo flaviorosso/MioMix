@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Mio Mix — creme + terracota, Fraunces (títulos) + Inter (texto). Mobile first.
+   Ciao Ciao — creme + terracota, Fraunces (títulos) + Inter (texto). Mobile first.
    ========================================================================== */
 
 :root {
@@ -910,4 +910,15 @@ button.card:active {
   border-radius: var(--radius-sm);
   background: var(--cream-deep);
   font-size: 0.875rem;
+}
+
+/* --- Logo Ciao Ciao --- */
+.brand-logo {
+  display: block;
+  height: auto;
+  object-fit: contain;
+}
+
+.hero__logo {
+  margin-bottom: 8px;
 }

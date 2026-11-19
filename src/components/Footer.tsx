@@ -23,7 +23,7 @@ export function Footer() {
         <span aria-hidden="true">·</span>
         <a href="/datenschutz">Datenschutz</a>
       </nav>
-      <p className="footer__copy">© {YEAR} Mio Mix</p>
+      <p className="footer__copy">© {YEAR} Eiscafé Ciao Ciao · Schweinfurt</p>
     </footer>
   );
 }

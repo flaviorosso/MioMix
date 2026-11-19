@@ -3,7 +3,7 @@ import { useLangState } from './LangContext';
 
 /** Textos da área do cliente. O alemão define a estrutura; os outros idiomas seguem o mesmo formato. */
 const de = {
-  pageTitle: 'Mio Mix – Gelato-Box zum Mitnehmen',
+  pageTitle: 'Ciao Ciao – Gelato-Box zum Mitnehmen',
   langLabel: 'Sprache',
   hero: {
     title: 'Deine Gelato-Box zum Mitnehmen',
@@ -112,7 +112,7 @@ const de = {
   },
   footer: {
     whatsapp: 'Fragen? Schreib uns auf WhatsApp',
-    whatsappText: 'Hallo Mio Mix! Ich habe eine Frage zu meiner Bestellung.',
+    whatsappText: 'Hallo Ciao Ciao! Ich habe eine Frage zu meiner Bestellung.',
     legalAria: 'Rechtliches',
   },
   legal: {
@@ -125,7 +125,7 @@ const de = {
 export type CustomerMessages = typeof de;
 
 const pt: CustomerMessages = {
-  pageTitle: 'Mio Mix – Box de gelato para levar',
+  pageTitle: 'Ciao Ciao – Box de gelato para levar',
   langLabel: 'Idioma',
   hero: {
     title: 'Sua box de gelato para levar',
@@ -233,7 +233,7 @@ const pt: CustomerMessages = {
   },
   footer: {
     whatsapp: 'Dúvidas? Fale com a gente no WhatsApp',
-    whatsappText: 'Olá Mio Mix! Tenho uma dúvida sobre o meu pedido.',
+    whatsappText: 'Olá Ciao Ciao! Tenho uma dúvida sobre o meu pedido.',
     legalAria: 'Informações legais',
   },
   legal: {
@@ -244,7 +244,7 @@ const pt: CustomerMessages = {
 };
 
 const en: CustomerMessages = {
-  pageTitle: 'Mio Mix – Gelato box to go',
+  pageTitle: 'Ciao Ciao – Gelato box to go',
   langLabel: 'Language',
   hero: {
     title: 'Your gelato box to go',
@@ -352,7 +352,7 @@ const en: CustomerMessages = {
   },
   footer: {
     whatsapp: 'Questions? Message us on WhatsApp',
-    whatsappText: 'Hello Mio Mix! I have a question about my order.',
+    whatsappText: 'Hello Ciao Ciao! I have a question about my order.',
     legalAria: 'Legal',
   },
   legal: {

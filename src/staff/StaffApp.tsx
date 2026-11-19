@@ -3,6 +3,7 @@ import { Authenticator, translations, useAuthenticator } from '@aws-amplify/ui-r
 import '@aws-amplify/ui-react/styles.css';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { I18n } from 'aws-amplify/utils';
+import { BrandLogo } from '../components/BrandLogo';
 import { LangSwitcher } from '../components/LangSwitcher';
 import { LangProvider } from '../i18n/LangContext';
 import { STAFF_LANG_KEY, STAFF_LANGS, useStaffI18n } from '../i18n/staff';
@@ -28,7 +29,7 @@ function LoginHeader() {
   return (
     <div className="staff-login__header">
       <StaffLangSwitcher />
-      <p className="hero__brand">Mio Mix</p>
+      <BrandLogo size={88} className="staff-login__logo" />
       <h1>{t.shell.teamArea}</h1>
     </div>
   );
@@ -49,7 +50,7 @@ function StaffRoot() {
   // Textos da tela de login (Amplify) no idioma do painel.
   I18n.setLanguage(lang);
   useEffect(() => {
-    document.title = 'Mio Mix – Team';
+    document.title = 'Ciao Ciao – Team';
   }, []);
   return (
     <div className="staff">
@@ -92,8 +93,8 @@ function StaffShell() {
   return (
     <div className="staff-shell">
       <header className="staff-top">
-        <div>
-          <p className="hero__brand">Mio Mix</p>
+        <div className="staff-top__brand">
+          <BrandLogo size={48} />
           <p className="staff-top__user">{user?.signInDetails?.loginId}</p>
         </div>
         <div className="staff-top__actions">

@@ -80,10 +80,10 @@ const MSG = {
 let stripeClient: Stripe | undefined;
 const stripe = () => (stripeClient ??= new Stripe(process.env.STRIPE_SECRET_KEY!));
 
-/** Código curto para o balcão, sem caracteres ambíguos (0/O, 1/I/L). Ex.: MM-7K4Q2X */
+/** Código curto para o balcão, sem caracteres ambíguos (0/O, 1/I/L). Ex.: CC-7K4Q2X (Ciao Ciao) */
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const makeOrderCode = () =>
-  'MM-' + Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
+  'CC-' + Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 
 const env = {
   flavorTable: process.env.FLAVOR_TABLE!,
@@ -286,7 +286,7 @@ export const handler: Handler = async (event) => {
       metadata: { orderId, orderCode },
       payment_intent_data: {
         metadata: { orderId, orderCode },
-        description: `Mio Mix ${orderCode}`,
+        description: `Ciao Ciao ${orderCode}`,
       },
       expires_at: expiresAt,
       line_items: [

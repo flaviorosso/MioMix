@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { BOX_SIZES, CUP_GRAMS, PFAND_CENTS, PRICES_CENTS, type BoxSize } from '../../shared/pricing';
 import { Cup } from '../components/Cup';
+import { BrandLogo } from '../components/BrandLogo';
 import { FlavorCard } from '../components/FlavorCard';
 import { Footer } from '../components/Footer';
 import { client } from '../lib/amplify';
@@ -169,7 +170,7 @@ export function OrderPage() {
   return (
     <div className="page page--with-bar">
       <header className="hero">
-        <p className="hero__brand">Mio Mix</p>
+        <BrandLogo size={112} className="hero__logo" />
         <h1 className="hero__title">{t.hero.title}</h1>
         <p className="hero__lead">{t.hero.lead}</p>
       </header>

@@ -624,3 +624,13 @@
   text-transform: uppercase;
   color: var(--muted);
 }
+
+.staff-login__logo {
+  margin: 0 auto;
+}
+
+.staff-top__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

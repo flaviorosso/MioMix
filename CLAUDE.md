@@ -1,8 +1,9 @@
-# Mio Mix
+# Mio Mix (marca: Ciao Ciao)
 
 ## Regras do projeto
 
-- Projeto: **Mio Mix**.
+- Projeto: **Mio Mix** (nome interno: repositório, app do Amplify, perfil AWS).
+- Marca para os clientes: **Ciao Ciao – Gelato classico dal 1985** (Eiscafé Ciao Ciao, Schweinfurt). Nada voltado ao cliente deve dizer "Mio Mix". Logo provisório em `public/brand/` (recortado da prova da gráfica; trocar pelo vetor original quando chegar).
 - Backend e hospedagem: **AWS Amplify Gen 2**.
 - Região AWS: **eu-north-1** (use-a em todos os comandos, recursos e configurações, salvo instrução em contrário).
 - Perfil AWS: **miomix** (por exemplo, `--profile miomix` ou `AWS_PROFILE=miomix`).
