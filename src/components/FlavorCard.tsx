@@ -21,7 +21,7 @@ export function FlavorCard({ flavor, quantity, boxFull, onChange }: FlavorCardPr
 
   return (
     <article className={`flavor${quantity > 0 ? ' flavor--selected' : ''}`}>
-      <Cup color={flavor.color} size={60} />
+      <Cup color={flavor.color} size={76} />
       <div className="flavor__body">
         <h3 className="flavor__name">{text.name}</h3>
         {text.description && <p className="flavor__desc">{text.description}</p>}

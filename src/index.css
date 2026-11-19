@@ -316,7 +316,7 @@ button.card:active {
 
 .flavor {
   display: grid;
-  grid-template-columns: 60px 1fr;
+  grid-template-columns: 76px 1fr;
   grid-template-areas:
     'cup body'
     'stepper stepper';
@@ -431,17 +431,26 @@ button.card:active {
   stroke-linecap: round;
 }
 
+/* Pote "Classico": papel branco, impressão em 1 cor (preto) */
 .cup__body {
-  fill: var(--paper);
+  fill: #fff;
+}
+
+.cup__outline {
+  fill: none;
   stroke: var(--ink);
-  stroke-width: 2;
+  stroke-width: 1.6;
   stroke-linejoin: round;
 }
 
-.cup__band {
-  fill: var(--flavor);
-  stroke: color-mix(in srgb, var(--flavor) 60%, #2b1d14);
-  stroke-width: 1;
+.cup__ink {
+  fill: #1e1612;
+}
+
+.cup__text {
+  stroke: #1e1612;
+  stroke-width: 0.9;
+  stroke-dasharray: 0.9 0.9;
 }
 
 /* --- Formulário ---------------------------------------------------------- */
