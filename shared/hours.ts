@@ -30,8 +30,9 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** Lê o horário vindo do banco (pode chegar como texto JSON ou já como lista) e descarta entradas inválidas. */
 export function parseWeeklyHours(raw: unknown): OpeningDay[] {
+  // Pode chegar como texto JSON (às vezes codificado duas vezes) ou já como objeto.
   let value = raw;
-  if (typeof value === 'string') {
+  for (let i = 0; i < 3 && typeof value === 'string'; i++) {
     try {
       value = JSON.parse(value);
     } catch {

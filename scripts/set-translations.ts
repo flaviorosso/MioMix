@@ -22,11 +22,10 @@ for (const [id, translations] of Object.entries(FLAVOR_TRANSLATIONS)) {
         UpdateExpression: 'SET translations = :t, updatedAt = :now',
         ConditionExpression: force
           ? 'attribute_exists(id)'
-          : 'attribute_exists(id) AND (attribute_not_exists(translations) OR translations = :empty)',
+          : 'attribute_exists(id) AND attribute_not_exists(translations)',
         ExpressionAttributeValues: {
-          ':t': JSON.stringify(translations),
+          ':t': translations,
           ':now': new Date().toISOString(),
-          ...(force ? {} : { ':empty': '{}' }),
         },
       }),
     );

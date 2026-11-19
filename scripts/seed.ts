@@ -60,7 +60,7 @@ await batchPut(
   table('Flavor'),
   flavors.map(({ stock: _stock, ...f }, i) => ({
     ...f,
-    translations: JSON.stringify(FLAVOR_TRANSLATIONS[f.id] ?? {}),
+    translations: FLAVOR_TRANSLATIONS[f.id] ?? {},
     active: true,
     sortOrder: i + 1,
     ...meta('Flavor'),

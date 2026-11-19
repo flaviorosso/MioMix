@@ -22,8 +22,9 @@ export type FlavorTranslations = Partial<Record<Exclude<Lang, 'de'>, FlavorTrans
 
 /** Lê o campo `translations` vindo do banco (texto JSON ou objeto). */
 export function parseTranslations(raw: unknown): FlavorTranslations {
+  // Pode chegar como texto JSON (às vezes codificado duas vezes) ou já como objeto.
   let value = raw;
-  if (typeof value === 'string') {
+  for (let i = 0; i < 3 && typeof value === 'string'; i++) {
     try {
       value = JSON.parse(value);
     } catch {

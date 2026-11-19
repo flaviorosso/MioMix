@@ -17,7 +17,7 @@ for (const [code, h] of Object.entries(hours)) {
       Key: { code },
       UpdateExpression: 'SET weeklyHours = :h, openingHours = :t, updatedAt = :now',
       ConditionExpression: 'attribute_exists(code)',
-      ExpressionAttributeValues: { ':h': JSON.stringify(h), ':t': formatWeeklyHours(h), ':now': new Date().toISOString() },
+      ExpressionAttributeValues: { ':h': h, ':t': formatWeeklyHours(h), ':now': new Date().toISOString() },
     }),
   );
   console.log(code, '→', formatWeeklyHours(h));
