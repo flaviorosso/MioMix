@@ -197,12 +197,21 @@ async function registerPfandReturn(args: ReturnArgs): Promise<ReturnResult> {
 // Roteamento pelas mutations
 // ---------------------------------------------------------------------------
 export const handler = async (event: AppSyncResolverEvent<Record<string, unknown>>) => {
-  switch (event.info.fieldName) {
+  // No Amplify Gen 2 o nome da operação vem em event.fieldName (não em event.info).
+  // Aceitamos os dois formatos e, em último caso, decidimos pelos argumentos.
+  const loose = event as unknown as { fieldName?: string; info?: { fieldName?: string } };
+  const args = event.arguments ?? {};
+  const fieldName =
+    loose.info?.fieldName ??
+    loose.fieldName ??
+    ('orderId' in args ? 'updateOrderStatus' : 'customerEmail' in args ? 'registerPfandReturn' : undefined);
+
+  switch (fieldName) {
     case 'updateOrderStatus':
-      return updateOrderStatus(event.arguments as unknown as UpdateArgs, event);
+      return updateOrderStatus(args as unknown as UpdateArgs, event);
     case 'registerPfandReturn':
-      return registerPfandReturn(event.arguments as unknown as ReturnArgs);
+      return registerPfandReturn(args as unknown as ReturnArgs);
     default:
-      throw new Error(`Unbekannte Operation: ${event.info.fieldName}`);
+      throw new Error(`Unbekannte Operation: ${fieldName ?? '–'}`);
   }
 };
