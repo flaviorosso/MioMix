@@ -6,18 +6,20 @@ import { I18n } from 'aws-amplify/utils';
 import { FlavorsTab } from './FlavorsTab';
 import { OrdersTab } from './OrdersTab';
 import { PfandTab } from './PfandTab';
+import { PickupPointsTab } from './PickupPointsTab';
 import { StockTab } from './StockTab';
 import './staff.css';
 
 I18n.putVocabularies(translations);
 I18n.setLanguage('de');
 
-type Tab = 'orders' | 'stock' | 'flavors' | 'pfand';
+type Tab = 'orders' | 'stock' | 'flavors' | 'pfand' | 'points';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'orders', label: 'Bestellungen' },
   { id: 'stock', label: 'Bestand' },
   { id: 'flavors', label: 'Sorten' },
   { id: 'pfand', label: 'Pfand' },
+  { id: 'points', label: 'Orte' },
 ];
 
 const authComponents = {
@@ -100,6 +102,7 @@ function StaffShell() {
         {tab === 'stock' && <StockTab />}
         {tab === 'flavors' && <FlavorsTab />}
         {tab === 'pfand' && <PfandTab />}
+        {tab === 'points' && <PickupPointsTab />}
       </main>
     </div>
   );

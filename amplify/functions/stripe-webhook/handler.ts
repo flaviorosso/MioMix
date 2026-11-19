@@ -2,7 +2,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import type { APIGatewayProxyStructuredResultV2, LambdaFunctionURLEvent } from 'aws-lambda';
 import Stripe from 'stripe';
-import { PICKUP_WINDOW_HOURS } from '../../../shared/pricing';
+import { pickupDeadlineFor } from '../_shared/deadline';
 import { cancelOrder, type OrderTables } from '../_shared/orders';
 
 const tables: OrderTables = {
@@ -10,6 +10,8 @@ const tables: OrderTables = {
   stockTable: process.env.STOCK_TABLE!,
   pfandBoxTable: process.env.PFAND_BOX_TABLE!,
 };
+
+const PICKUP_POINT_TABLE = process.env.PICKUP_POINT_TABLE!;
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true },
@@ -24,7 +26,7 @@ const reply = (statusCode: number, body: string): APIGatewayProxyStructuredResul
   body,
 });
 
-/** Marca o pedido como pago. O prazo de retirada (24 h) passa a contar do pagamento. */
+/** Marca o pedido como pago. O prazo de retirada (24 h, ajustado ao horário do ponto) conta do pagamento. */
 async function markPaid(session: Stripe.Checkout.Session) {
   const orderId = session.metadata?.orderId ?? session.client_reference_id;
   if (!orderId) {
@@ -34,7 +36,10 @@ async function markPaid(session: Stripe.Checkout.Session) {
   const paymentIntentId =
     typeof session.payment_intent === 'string' ? session.payment_intent : (session.payment_intent?.id ?? null);
   const paidAt = new Date();
-  const deadline = new Date(paidAt.getTime() + PICKUP_WINDOW_HOURS * 3600_000);
+  const { Item: current } = await ddb.send(new GetCommand({ TableName: tables.orderTable, Key: { id: orderId } }));
+  const deadline = current
+    ? await pickupDeadlineFor(ddb, PICKUP_POINT_TABLE, current.pickupPointCode as string, paidAt)
+    : paidAt;
 
   try {
     await ddb.send(

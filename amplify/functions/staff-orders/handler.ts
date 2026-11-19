@@ -8,12 +8,14 @@ import {
 import type { AppSyncResolverEvent } from 'aws-lambda';
 import type { Schema } from '../../data/resource';
 import { PFAND_CENTS } from '../../../shared/pricing';
+import { pickupDeadlineFor } from '../_shared/deadline';
 import { buildReleaseItems, type OrderStatus, type TransactItems } from '../_shared/orders';
 
 const env = {
   stockTable: process.env.STOCK_TABLE!,
   orderTable: process.env.ORDER_TABLE!,
   pfandBoxTable: process.env.PFAND_BOX_TABLE!,
+  pickupPointTable: process.env.PICKUP_POINT_TABLE!,
 };
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
@@ -77,6 +79,15 @@ async function updateOrderStatus(
   if (next === 'cancelado') {
     transact.push(...(await buildReleaseItems(ddb, env, order, now)));
     extraSets.cancelReason = 'Vom Team storniert';
+  }
+
+  // --- Marcado como pago à mão: prazo conta a partir de agora ----------------
+  if (next === 'pago') {
+    const paidAt = new Date(now);
+    extraSets.paidAt = now;
+    extraSets.pickupDeadline = (
+      await pickupDeadlineFor(ddb, env.pickupPointTable, order.pickupPointCode as string, paidAt)
+    ).toISOString();
   }
 
   // --- Retirada com Pfand-Rückgabe declarada: staff confirma a caixa ----------

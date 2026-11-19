@@ -85,7 +85,7 @@
   top: 0;
   z-index: 5;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   padding: 6px;
   margin: 0 -4px 20px;
@@ -544,4 +544,62 @@
 .order__notice--alert {
   background: #fbe9e7;
   color: var(--error);
+}
+
+/* --- Abholorte --- */
+.point-list {
+  display: grid;
+  gap: 12px;
+}
+
+.point-card {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.hours-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.hours-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.hours-row.is-closed {
+  opacity: 0.7;
+}
+
+.hours-row__day {
+  font-size: 0.925rem;
+  color: var(--ink);
+  min-width: 120px;
+}
+
+.hours-row__times {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hours-row__times input {
+  height: 40px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 16px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--ink);
+}
+
+@media (max-width: 420px) {
+  .staff-tabs__btn {
+    font-size: 0.78rem;
+  }
 }

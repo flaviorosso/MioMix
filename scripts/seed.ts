@@ -10,6 +10,7 @@
  */
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { BatchWriteCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { formatWeeklyHours, type OpeningDay } from '../shared/hours';
 
 const apiId = process.argv[2];
 if (!apiId) {
@@ -35,9 +36,12 @@ const flavors = [
   { id: 'mango', name: 'Mango', description: 'Sonniges Mangosorbet. Vegan.', allergens: [], color: '#FFB347', stock: 26 },
 ];
 
+// Horário: 0 = Mo … 6 = So; dias ausentes = fechado. Editável depois na aba "Orte" do painel staff.
+const ciaoHours: OpeningDay[] = [1, 2, 3, 4, 5, 6].map((day) => ({ day, open: '11:00', close: '21:00' })); // provisório
+const racchettaHours: OpeningDay[] = [0, 2, 3, 4, 5, 6].map((day) => ({ day, open: '16:00', close: '22:00' }));
 const pickupPoints = [
-  { code: 'ciaociao', name: 'Eis Café Ciao Ciao', openingHours: 'Di–So 11:00–21:00' },
-  { code: 'racchetta', name: 'Trattoria La Racchetta', openingHours: 'Di–So 12:00–14:30 und 17:30–22:00' },
+  { code: 'ciaociao', name: 'Eis Café Ciao Ciao', weeklyHours: ciaoHours, openingHours: formatWeeklyHours(ciaoHours) },
+  { code: 'racchetta', name: 'Trattoria La Racchetta', weeklyHours: racchettaHours, openingHours: formatWeeklyHours(racchettaHours) },
 ];
 
 async function batchPut(tableName: string, items: Record<string, unknown>[]) {

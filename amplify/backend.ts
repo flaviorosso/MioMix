@@ -61,13 +61,13 @@ grant(backend.placeOrder, {
 });
 
 // staff-orders: mudança de status, devolução de Pfand.
-grant(backend.staffOrders, { Stock: 'readwrite', Order: 'readwrite', PfandBox: 'readwrite' });
+grant(backend.staffOrders, { PickupPoint: 'read', Stock: 'readwrite', Order: 'readwrite', PfandBox: 'readwrite' });
 
 // order-status: visão pública de um pedido.
 grant(backend.orderStatus, { Order: 'read', PickupPoint: 'read' });
 
 // stripe-webhook: marca como pago / cancela sessões expiradas.
-grant(backend.stripeWebhook, { Stock: 'readwrite', Order: 'readwrite', PfandBox: 'readwrite' });
+grant(backend.stripeWebhook, { PickupPoint: 'read', Stock: 'readwrite', Order: 'readwrite', PfandBox: 'readwrite' });
 
 // expire-orders: limpeza periódica de pedidos não pagos.
 grant(backend.expireOrders, { Stock: 'readwrite', Order: 'readwrite', PfandBox: 'readwrite' });

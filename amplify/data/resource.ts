@@ -42,7 +42,8 @@ const schema = a.schema({
       code: a.string().required(),
       name: a.string().required(),
       address: a.string(),
-      openingHours: a.string(),
+      openingHours: a.string(), // texto para o cliente, gerado a partir de weeklyHours
+      weeklyHours: a.json(), // [{ day: 0=Mo…6=So, open: 'HH:MM', close: 'HH:MM' }], dias ausentes = fechado
       active: a.boolean(),
     })
     .identifier(['code'])
